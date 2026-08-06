@@ -20,7 +20,7 @@
         "vue"
     ],
     "bin": {
-        "bopli-theme": "./bin/bopli-theme.js"
+        "bopli-theme": "bin/bopli-theme.js"
     },
     "files": [
         "bin",
