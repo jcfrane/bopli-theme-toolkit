@@ -1,0 +1,74 @@
+name: Release Bopli theme
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: '22'
+      toolkit-version:
+        type: string
+        default: '0.1.0'
+      asset-base-url:
+        description: Public HTTPS origin used to serve the theme bucket
+        type: string
+        required: true
+    secrets:
+      R2_ACCESS_KEY_ID:
+        required: true
+      R2_SECRET_ACCESS_KEY:
+        required: true
+      R2_ENDPOINT:
+        required: true
+      R2_BUCKET:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          persist-credentials: false
+      - name: Checkout pinned theme toolkit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          repository: jcfrane/bopli-theme-toolkit
+          ref: v${{ inputs.toolkit-version }}
+          path: .bopli-toolkit
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: .bopli-toolkit/package-lock.json
+      - run: npm ci --prefix .bopli-toolkit
+      - run: npm test --prefix .bopli-toolkit
+      - run: node .bopli-toolkit/packages/cli/bin/bopli-theme.js validate .
+      - run: node .bopli-toolkit/packages/cli/bin/bopli-theme.js build .
+      - name: Upload immutable release
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          ASSET_BASE_URL: ${{ inputs.asset-base-url }}
+        run: |
+          set -euo pipefail
+          HANDLE=$(node -p "require('./composer.json').extra.bopli.handle")
+          VERSION=$(node -p "require('./composer.json').version")
+          RELEASE_HASH=$(cat .bopli-release-hash)
+          PREFIX="themes/${HANDLE}/${VERSION}/${RELEASE_HASH}"
+          aws s3 cp dist "s3://${R2_BUCKET}/${PREFIX}" --recursive --exclude "theme.json" --endpoint-url "${R2_ENDPOINT}" --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp dist/theme.json "s3://${R2_BUCKET}/${PREFIX}/theme.json" --endpoint-url "${R2_ENDPOINT}" --cache-control "public,max-age=31536000,immutable" --content-type "application/json"
+          find dist -type f -print0 | while IFS= read -r -d '' FILE; do
+            RELATIVE_PATH=${FILE#dist/}
+            PUBLIC_URL="${ASSET_BASE_URL%/}/${PREFIX}/${RELATIVE_PATH}"
+            curl --fail --silent --show-error --head "${PUBLIC_URL}"
+            curl --fail --silent --show-error --head --header "Origin: https://bopli.com" "${PUBLIC_URL}" | grep --ignore-case --quiet '^access-control-allow-origin: \*'
+          done
+          echo "Register: ${ASSET_BASE_URL%/}/${PREFIX}/theme.json"

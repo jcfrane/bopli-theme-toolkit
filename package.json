@@ -1,0 +1,20 @@
+{
+    "name": "bopli-theme-toolkit",
+    "private": true,
+    "type": "module",
+    "workspaces": [
+        "packages/*"
+    ],
+    "scripts": {
+        "test": "node --test",
+        "check": "node packages/cli/bin/bopli-theme.js validate starter-theme",
+        "build:starter": "node packages/cli/bin/bopli-theme.js build starter-theme"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-vue": "^6.0.0",
+        "@vue/compiler-sfc": "^3.5.13",
+        "semver": "^7.7.2",
+        "vite": "^8.0.0",
+        "vue": "^3.5.13"
+    }
+}

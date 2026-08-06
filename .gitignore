@@ -1,0 +1,5 @@
+node_modules/
+dist/
+starter-theme/dist/
+starter-theme/.bopli-release-hash
+.DS_Store

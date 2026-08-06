@@ -1,0 +1,20 @@
+{
+    "name": "@bopli/theme-cli",
+    "version": "0.1.0",
+    "type": "module",
+    "bin": {
+        "bopli-theme": "./bin/bopli-theme.js"
+    },
+    "files": [
+        "bin",
+        "src"
+    ],
+    "dependencies": {
+        "@bopli/theme-sdk": "0.1.0",
+        "@vitejs/plugin-vue": "^6.0.0",
+        "@vue/compiler-sfc": "^3.5.13",
+        "semver": "^7.7.2",
+        "vite": "^8.0.0",
+        "vue": "^3.5.13"
+    }
+}
