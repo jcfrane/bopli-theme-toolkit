@@ -8,7 +8,7 @@ on:
         default: '22'
       toolkit-version:
         type: string
-        default: '0.1.0'
+        default: '0.1.1'
       asset-base-url:
         description: Public HTTPS origin used to serve the theme bucket
         type: string

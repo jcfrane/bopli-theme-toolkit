@@ -10,6 +10,17 @@ Licensed under the MIT License.
 
 ## Commands
 
+Theme repositories install the public packages:
+
+```sh
+npm install --save-dev --save-exact @bopli/theme-cli@0.1.1 @bopli/theme-sdk@0.1.1
+npx bopli-theme validate .
+npx bopli-theme build .
+npx bopli-theme dev . --app ../bopli-app
+```
+
+Toolkit contributors can run the CLI directly against sibling repositories:
+
 ```sh
 npm install
 node packages/cli/bin/bopli-theme.js validate ../dev-cosmo

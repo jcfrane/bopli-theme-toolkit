@@ -1,7 +1,24 @@
 {
     "name": "@bopli/theme-cli",
-    "version": "0.1.0",
+    "version": "0.1.1",
+    "description": "Validate, build, and locally serve independently deployed Bopli themes.",
     "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jcfrane/bopli-theme-toolkit.git",
+        "directory": "packages/cli"
+    },
+    "homepage": "https://github.com/jcfrane/bopli-theme-toolkit#readme",
+    "bugs": {
+        "url": "https://github.com/jcfrane/bopli-theme-toolkit/issues"
+    },
+    "keywords": [
+        "bopli",
+        "theme",
+        "vite",
+        "vue"
+    ],
     "bin": {
         "bopli-theme": "./bin/bopli-theme.js"
     },
@@ -9,8 +26,14 @@
         "bin",
         "src"
     ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "engines": {
+        "node": ">=20.19.0"
+    },
     "dependencies": {
-        "@bopli/theme-sdk": "0.1.0",
+        "@bopli/theme-sdk": "0.1.1",
         "@vitejs/plugin-vue": "^6.0.0",
         "@vue/compiler-sfc": "^3.5.13",
         "semver": "^7.7.2",

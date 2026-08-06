@@ -1,7 +1,24 @@
 {
     "name": "@bopli/theme-sdk",
-    "version": "0.1.0",
+    "version": "0.1.1",
+    "description": "Public TypeScript contracts and Vue helpers for Bopli themes.",
     "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jcfrane/bopli-theme-toolkit.git",
+        "directory": "packages/sdk"
+    },
+    "homepage": "https://github.com/jcfrane/bopli-theme-toolkit#readme",
+    "bugs": {
+        "url": "https://github.com/jcfrane/bopli-theme-toolkit/issues"
+    },
+    "keywords": [
+        "bopli",
+        "theme",
+        "vue",
+        "typescript"
+    ],
     "exports": {
         ".": {
             "types": "./src/index.d.ts",
@@ -11,6 +28,12 @@
     "files": [
         "src"
     ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "engines": {
+        "node": ">=20.19.0"
+    },
     "peerDependencies": {
         "vue": "^3.5.0"
     }
