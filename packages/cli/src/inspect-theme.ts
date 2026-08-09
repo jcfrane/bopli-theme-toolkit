@@ -1,0 +1,214 @@
+import { readFile, readdir } from 'node:fs/promises';
+import { extname, join } from 'node:path';
+import semver from 'semver';
+import { RESERVED_ENTRY_FIELDS } from './constants.js';
+import { assertNoSymlinks, validateImports } from './source-validation.js';
+import { readStarterRecipe } from './starter-recipe.js';
+import type {
+    JsonObject,
+    TemplateField,
+    TemplateKind,
+    TemplateSlot,
+    ThemeDefinition,
+    ThemeTemplate,
+    ThemeTemplates,
+} from './types.js';
+import {
+    assertObject,
+    headline,
+    isFileSystemError,
+    snakeCase,
+} from './utilities.js';
+
+const TEMPLATE_DIRECTORIES: Array<[string, TemplateKind]> = [
+    ['pages', 'page'],
+    ['entries', 'entry'],
+    ['blogs', 'blog_index'],
+    ['posts', 'blog_post'],
+];
+
+export async function inspectTheme(root: string): Promise<ThemeDefinition> {
+    await assertNoSymlinks(root);
+    const composer = await readComposer(root);
+    const extra = composer.extra;
+    const bopli = extra && typeof extra === 'object' && !Array.isArray(extra)
+        ? (extra as JsonObject).bopli
+        : undefined;
+
+    if (composer.type !== 'bopli-theme' || typeof composer.version !== 'string' || !bopli) {
+        throw new Error('composer.json must declare a bopli-theme type, version, and extra.bopli metadata.');
+    }
+    assertObject(bopli, 'extra.bopli must be a JSON object.');
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(bopli.handle ?? '')) || typeof bopli.name !== 'string') {
+        throw new Error('extra.bopli must contain a valid handle and name.');
+    }
+    if (
+        !semver.valid(composer.version) ||
+        typeof bopli.constraint !== 'string' ||
+        !semver.validRange(bopli.constraint)
+    ) {
+        throw new Error('The theme version and Bopli constraint must be valid semver values.');
+    }
+
+    const templates = await discoverTemplates(root);
+    assertTemplateDefaults(templates);
+    await validateImports(root);
+    const starter = await readStarterRecipe(root, templates);
+    const author = themeAuthor(composer, bopli);
+
+    return {
+        root,
+        handle: String(bopli.handle),
+        name: bopli.name,
+        version: composer.version,
+        constraint: bopli.constraint,
+        description: typeof composer.description === 'string' ? composer.description : null,
+        author,
+        colorModes: Array.isArray(bopli.colorModes)
+            ? bopli.colorModes.filter((mode): mode is string => typeof mode === 'string')
+            : [],
+        previewSource: typeof bopli.preview === 'string' ? bopli.preview : null,
+        templates,
+        starter,
+    };
+}
+
+async function readComposer(root: string): Promise<JsonObject> {
+    const value = JSON.parse(await readFile(join(root, 'composer.json'), 'utf8')) as unknown;
+    assertObject(value, 'composer.json must contain a JSON object.');
+
+    return value;
+}
+
+async function discoverTemplates(root: string): Promise<ThemeTemplates> {
+    const templates: ThemeTemplates = {};
+
+    for (const [directory, kind] of TEMPLATE_DIRECTORIES) {
+        const templateRoot = join(root, 'resources/js/templates', directory);
+        let entries;
+        try {
+            entries = await readdir(templateRoot, { withFileTypes: true });
+        } catch (error) {
+            if (isFileSystemError(error, 'ENOENT')) continue;
+            throw error;
+        }
+
+        for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+            if (!entry.isFile() || extname(entry.name) !== '.vue') {
+                throw new Error(`Template directory [${directory}] may contain only top-level Vue files.`);
+            }
+
+            const handle = snakeCase(entry.name.slice(0, -4));
+            if (templates[handle]) throw new Error(`Template handle [${handle}] is declared more than once.`);
+            templates[handle] = await inspectTemplate(templateRoot, directory, entry.name, kind, handle);
+        }
+    }
+
+    if (Object.keys(templates).length === 0) {
+        throw new Error('The theme does not declare any templates.');
+    }
+
+    return templates;
+}
+
+async function inspectTemplate(
+    templateRoot: string,
+    directory: string,
+    filename: string,
+    kind: TemplateKind,
+    handle: string,
+): Promise<ThemeTemplate> {
+    const contents = await readFile(join(templateRoot, filename), 'utf8');
+    const metadata = parseMetadata(contents, `${directory}/${filename}`);
+    const fields = metadata.fields === undefined ? undefined : templateFields(metadata.fields, directory, filename);
+    const slots = metadata.slots === undefined ? undefined : templateSlots(metadata.slots, directory, filename);
+
+    if (kind === 'entry' && (!fields || Object.keys(fields).length === 0)) {
+        throw new Error(`Entry template [${directory}/${filename}] must declare fields.`);
+    }
+    if (kind === 'entry') {
+        const reservedField = Object.keys(fields ?? {}).find((field) => RESERVED_ENTRY_FIELDS.has(field));
+        if (reservedField) {
+            throw new Error(`Entry template [${directory}/${filename}] redeclares reserved field [${reservedField}].`);
+        }
+    }
+    if (kind === 'page' && fields) {
+        throw new Error(`Page template [${directory}/${filename}] may not declare fields.`);
+    }
+    if (kind === 'entry' && slots) {
+        throw new Error(`Entry template [${directory}/${filename}] may not declare slots.`);
+    }
+    if ((kind === 'blog_index' || kind === 'blog_post') && (fields || slots)) {
+        throw new Error(`Native Blog template [${directory}/${filename}] may not declare fields or slots.`);
+    }
+
+    return {
+        name: typeof metadata.name === 'string' ? metadata.name : headline(handle),
+        kind,
+        default: metadata.default === true,
+        ...(kind === 'page' ? { slots: slots ?? {} } : {}),
+        ...(kind === 'entry' ? { fields: fields ?? {} } : {}),
+        source: `/resources/js/templates/${directory}/${filename}`,
+    };
+}
+
+function parseMetadata(contents: string, file: string): JsonObject {
+    const match = contents.match(/<bopli\b[^>]*>([\s\S]*?)<\/bopli>/);
+    if (!match?.[1]) return {};
+
+    try {
+        const metadata = JSON.parse(match[1]) as unknown;
+        assertObject(metadata, 'Template metadata must be a JSON object.');
+        return metadata;
+    } catch {
+        throw new Error(`Template [${file}] contains invalid JSON in its <bopli> block.`);
+    }
+}
+
+function templateFields(value: unknown, directory: string, filename: string): Record<string, TemplateField> {
+    assertObject(value, `Template [${directory}/${filename}] fields must be a JSON object.`);
+
+    return value as Record<string, TemplateField>;
+}
+
+function templateSlots(value: unknown, directory: string, filename: string): Record<string, TemplateSlot> {
+    assertObject(value, `Template [${directory}/${filename}] slots must be a JSON object.`);
+
+    return value as Record<string, TemplateSlot>;
+}
+
+function assertTemplateDefaults(templates: ThemeTemplates): void {
+    const groups: Array<[string, ThemeTemplate[], boolean]> = [
+        ['Page', byKind(templates, 'page'), true],
+        ['Entry', byKind(templates, 'entry'), true],
+        ['Blog index', byKind(templates, 'blog_index'), false],
+        ['Blog post', byKind(templates, 'blog_post'), false],
+    ];
+    if ((groups[2]?.[1].length === 0) !== (groups[3]?.[1].length === 0)) {
+        throw new Error('A theme must provide Blog index and Blog post templates as a pair.');
+    }
+
+    for (const [label, candidates, required] of groups) {
+        if (required && candidates.length === 0) {
+            throw new Error(`A theme must provide at least one ${label} template.`);
+        }
+        if (candidates.length === 1 && candidates[0]) candidates[0].default = true;
+        if (candidates.length > 1 && candidates.filter((template) => template.default).length !== 1) {
+            throw new Error(`${label} templates must mark exactly one template as default.`);
+        }
+    }
+}
+
+function byKind(templates: ThemeTemplates, kind: TemplateKind): ThemeTemplate[] {
+    return Object.values(templates).filter((template) => template.kind === kind);
+}
+
+function themeAuthor(composer: JsonObject, bopli: JsonObject): string | null {
+    if (typeof bopli.author === 'string') return bopli.author;
+    if (!Array.isArray(composer.authors)) return null;
+    const author = composer.authors[0];
+
+    return author && typeof author === 'object' && 'name' in author && typeof author.name === 'string'
+        ? author.name
+        : null;
+}

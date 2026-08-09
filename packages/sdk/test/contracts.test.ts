@@ -4,9 +4,9 @@ import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const declarations = resolve(dirname(fileURLToPath(import.meta.url)), '../src/index.d.ts');
+const declarations = resolve(dirname(fileURLToPath(import.meta.url)), '../dist/index.d.ts');
 
-test('exports the protocol-v4 native Blog SDK contracts', async () => {
+test('exports the protocol-v1 native Blog SDK contracts', async () => {
     const source = await readFile(declarations, 'utf8');
 
     for (const contract of ['BopliBlogPostSummary', 'BopliBlogIndexProps', 'BopliBlogPostProps']) {

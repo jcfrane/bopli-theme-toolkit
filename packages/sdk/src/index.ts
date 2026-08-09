@@ -1,4 +1,4 @@
-import type { InjectionKey } from 'vue';
+import { inject, type InjectionKey } from 'vue';
 
 export type BopliImage = {
     url: string;
@@ -124,5 +124,16 @@ export type BopliThemeModule = {
     mount(payload: BopliThemeMountPayload): BopliThemeSession;
 };
 
-export const BOPLI_NAVIGATION_KEY: InjectionKey<BopliNavigation>;
-export function useBopliNavigation(): BopliNavigation;
+export const BOPLI_NAVIGATION_KEY: InjectionKey<BopliNavigation> = Symbol.for(
+    'bopli.theme.navigation',
+) as InjectionKey<BopliNavigation>;
+
+export function useBopliNavigation(): BopliNavigation {
+    const navigation = inject(BOPLI_NAVIGATION_KEY);
+
+    if (!navigation) {
+        throw new Error('Bopli theme navigation is only available inside the theme runtime.');
+    }
+
+    return navigation;
+}

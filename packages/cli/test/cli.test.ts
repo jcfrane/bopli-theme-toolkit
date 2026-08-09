@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { developmentRegistrationArguments, inspectTheme } from '../src/cli.js';
+import { developmentRegistrationArguments, inspectTheme } from '../dist/cli.js';
 
 const TOOLKIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -12,12 +12,63 @@ test('validates the starter theme contract', async () => {
     const theme = await inspectTheme(join(TOOLKIT_ROOT, 'starter-theme'));
 
     assert.equal(theme.handle, 'starter-theme');
-    assert.deepEqual(Object.keys(theme.templates), ['home']);
+    assert.deepEqual(Object.keys(theme.templates), ['home', 'page', 'entry']);
+    assert.equal(theme.templates.page?.default, true);
+    assert.equal(theme.templates.entry?.default, true);
+    assert.equal(theme.starter?.version, 1);
+    assert.equal((theme.starter?.pages[0] as { path?: string })?.path, '/');
+});
+
+test('requires Page and Entry templates with exactly one default each', async () => {
+    await withStarterTheme(async (root) => {
+        await writeTemplate(root, 'pages', 'Landing.vue', {
+            name: 'Landing',
+            default: true,
+            slots: {},
+        });
+
+        await assert.rejects(inspectTheme(root), /Page templates must mark exactly one/);
+    });
+
+    await withStarterTheme(async (root) => {
+        await rm(join(root, 'resources/js/templates/entries'), { recursive: true, force: true });
+
+        await assert.rejects(inspectTheme(root), /at least one Entry template/);
+    });
+});
+
+test('rejects starter content that references an unknown template', async () => {
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/bopli/starter.json');
+        const starter = JSON.parse(await readFile(path, 'utf8')) as {
+            pages: Array<{ template: string }>;
+        };
+        const firstPage = starter.pages[0];
+        assert(firstPage);
+        firstPage.template = 'missing';
+        await writeFile(path, JSON.stringify(starter));
+
+        await assert.rejects(inspectTheme(root), /must reference a Page template/);
+    });
+});
+
+test('rejects Entry contracts that shadow Bopli metadata', async () => {
+    await withStarterTheme(async (root) => {
+        await writeTemplate(root, 'entries', 'Entry.vue', {
+            name: 'Entry',
+            fields: { url: { name: 'External URL', type: 'short_text' } },
+        });
+
+        await assert.rejects(inspectTheme(root), /redeclares reserved field \[url\]/);
+    });
 });
 
 test('rejects imports that escape the theme repository', async () => {
     await withStarterTheme(async (root) => {
-        await appendToHome(root, "\n<script setup>\nimport secret from '../../../../outside.js';\n</script>\n");
+        await appendToHome(
+            root,
+            "\n<script setup>\nimport secret from '../../../../../outside.js';\n</script>\n",
+        );
 
         await assert.rejects(inspectTheme(root), /escapes the theme root/);
     });
@@ -25,7 +76,10 @@ test('rejects imports that escape the theme repository', async () => {
 
 test('rejects Vite glob and environment access', async () => {
     await withStarterTheme(async (root) => {
-        await appendToHome(root, '\n<script setup>\nconst files = import.meta.glob("../../**/*");\n</script>\n');
+        await appendToHome(
+            root,
+            '\n<script setup>\nconst files = import.meta.glob("../../**/*");\n</script>\n',
+        );
 
         await assert.rejects(inspectTheme(root), /environment access is not allowed/);
     });
@@ -44,8 +98,8 @@ test('discovers one native Blog template pair and makes both defaults', async ()
             default: true,
             source: '/resources/js/templates/blogs/Journal.vue',
         });
-        assert.equal(theme.templates.article.kind, 'blog_post');
-        assert.equal(theme.templates.article.default, true);
+        assert.equal(theme.templates.article?.kind, 'blog_post');
+        assert.equal(theme.templates.article?.default, true);
     });
 });
 
@@ -74,14 +128,22 @@ test('allows the local watch release to be staged during an incompatible protoco
             'http://localhost:5174',
         ),
         [
-            'compose', 'exec', '-T', 'php', 'php', 'artisan', 'bopli:theme:install',
-            'http://host.docker.internal:5174/theme.json', '--development', '--stage-if-incompatible',
+            'compose',
+            'exec',
+            '-T',
+            'php',
+            'php',
+            'artisan',
+            'bopli:theme:install',
+            'http://host.docker.internal:5174/theme.json',
+            '--development',
+            '--stage-if-incompatible',
             '--public-origin=http://localhost:5174',
         ],
     );
 });
 
-async function withStarterTheme(callback) {
+async function withStarterTheme(callback: (root: string) => Promise<void>): Promise<void> {
     const temporary = await mkdtemp(join(tmpdir(), 'bopli-theme-cli-'));
     const root = join(temporary, 'theme');
 
@@ -93,13 +155,18 @@ async function withStarterTheme(callback) {
     }
 }
 
-async function appendToHome(root, addition) {
+async function appendToHome(root: string, addition: string): Promise<void> {
     const path = join(root, 'resources/js/templates/pages/Home.vue');
     const contents = await readFile(path, 'utf8');
     await writeFile(path, contents + addition);
 }
 
-async function writeTemplate(root, directory, filename, metadata) {
+async function writeTemplate(
+    root: string,
+    directory: string,
+    filename: string,
+    metadata: Record<string, unknown>,
+): Promise<void> {
     const templateRoot = join(root, 'resources/js/templates', directory);
     await mkdir(templateRoot, { recursive: true });
     await writeFile(

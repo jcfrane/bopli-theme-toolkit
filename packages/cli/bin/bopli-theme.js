@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { run } from '../src/cli.js';
+import { run } from '../dist/cli.js';
 
 run(process.argv.slice(2)).catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

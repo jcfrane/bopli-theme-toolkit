@@ -1,6 +1,7 @@
 <bopli lang="json">
 {
-  "name": "Home",
+  "name": "Standard page",
+  "default": true,
   "slots": {}
 }
 </bopli>
@@ -13,9 +14,11 @@ defineProps<StarterPageProps>();
 
 <template>
   <main>
-    <h1>{{ page.title }}</h1>
-    <p>{{ site.tagline }}</p>
-    <p v-if="page.fields.body">{{ page.fields.body }}</p>
+    <a href="/">{{ site.name }}</a>
+    <article>
+      <h1>{{ page.title }}</h1>
+      <p v-if="page.fields.body">{{ page.fields.body }}</p>
+    </article>
   </main>
 </template>
 

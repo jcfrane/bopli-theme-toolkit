@@ -22,10 +22,15 @@
     "bin": {
         "bopli-theme": "bin/bopli-theme.js"
     },
+    "main": "dist/cli.js",
+    "types": "dist/cli.d.ts",
     "files": [
         "bin",
-        "src"
+        "dist"
     ],
+    "scripts": {
+        "build": "tsc -p tsconfig.json"
+    },
     "publishConfig": {
         "access": "public"
     },
