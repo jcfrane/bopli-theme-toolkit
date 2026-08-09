@@ -92,7 +92,7 @@ export async function inspectTheme(root) {
     }
 
     const templates = {};
-    for (const [directory, kind] of [['pages', 'page'], ['entries', 'entry']]) {
+    for (const [directory, kind] of [['pages', 'page'], ['entries', 'entry'], ['blogs', 'blog_index'], ['posts', 'blog_post']]) {
         const templateRoot = join(root, 'resources/js/templates', directory);
         let entries = [];
         try {
@@ -122,18 +122,35 @@ export async function inspectTheme(root) {
             if (kind === 'entry' && metadata.slots) {
                 throw new Error(`Entry template [${directory}/${entry.name}] may not declare slots.`);
             }
+            if (['blog_index', 'blog_post'].includes(kind) && (metadata.fields || metadata.slots)) {
+                throw new Error(`Native Blog template [${directory}/${entry.name}] may not declare fields or slots.`);
+            }
 
             templates[handle] = {
                 name: metadata.name ?? headline(handle),
                 kind,
-                ...(kind === 'page' ? { slots: metadata.slots ?? {} } : { fields: metadata.fields }),
+                ...(kind === 'page' ? { slots: metadata.slots ?? {} } : {}),
+                ...(kind === 'entry' ? { fields: metadata.fields } : {}),
+                ...(['blog_index', 'blog_post'].includes(kind) ? { default: metadata.default === true } : {}),
                 source: `/resources/js/templates/${directory}/${entry.name}`,
             };
         }
     }
 
+    const blogIndexes = Object.entries(templates).filter(([, template]) => template.kind === 'blog_index');
+    const blogPosts = Object.entries(templates).filter(([, template]) => template.kind === 'blog_post');
+    if ((blogIndexes.length === 0) !== (blogPosts.length === 0)) {
+        throw new Error('A theme must provide Blog index and Blog post templates as a pair.');
+    }
+    for (const [label, candidates] of [['Blog index', blogIndexes], ['Blog post', blogPosts]]) {
+        if (candidates.length === 1) candidates[0][1].default = true;
+        if (candidates.length > 1 && candidates.filter(([, template]) => template.default).length !== 1) {
+            throw new Error(`${label} templates must mark exactly one template as default.`);
+        }
+    }
+
     if (Object.keys(templates).length === 0) {
-        throw new Error('The theme does not declare any page or entry templates.');
+        throw new Error('The theme does not declare any templates.');
     }
 
     await validateImports(root);
@@ -409,7 +426,7 @@ function descriptorFor(theme, entry, styles, files, preview) {
     }));
 
     return {
-        schemaVersion: 3,
+        schemaVersion: 4,
         runtimeApiVersion: RUNTIME_API_VERSION,
         handle: theme.handle,
         name: theme.name,
@@ -460,10 +477,10 @@ async function serveTheme(theme, options) {
             join(descriptorDirectory, `${theme.handle}.json`),
             `${JSON.stringify(descriptor, null, 2)}\n`,
         );
-        const registration = spawn('docker', [
-            'compose', 'exec', '-T', 'php', 'php', 'artisan', 'bopli:theme:install', containerUrl,
-            '--development', `--public-origin=${publicOrigin}`,
-        ], { cwd: appPath, stdio: 'inherit' });
+        const registration = spawn('docker', developmentRegistrationArguments(containerUrl, publicOrigin), {
+            cwd: appPath,
+            stdio: 'inherit',
+        });
         const exitCode = await new Promise((resolveExit, rejectExit) => {
             registration.once('error', rejectExit);
             registration.once('close', resolveExit);
@@ -475,6 +492,13 @@ async function serveTheme(theme, options) {
     }
 
     process.stdout.write(`Serving [${theme.handle}] at ${publicOrigin}. Press Ctrl+C to stop.\n`);
+}
+
+export function developmentRegistrationArguments(containerUrl, publicOrigin) {
+    return [
+        'compose', 'exec', '-T', 'php', 'php', 'artisan', 'bopli:theme:install', containerUrl,
+        '--development', '--stage-if-incompatible', `--public-origin=${publicOrigin}`,
+    ];
 }
 
 function snakeCase(value) {

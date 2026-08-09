@@ -35,7 +35,10 @@ export type BopliPublicEntry<TFields extends Record<string, unknown> = Record<st
 } & TFields;
 
 export type BopliPageProps<
-    TSlots extends Record<string, BopliPublicEntry[]> = Record<string, BopliPublicEntry[]>,
+    TSlots extends Record<string, Array<BopliPublicEntry | BopliBlogPostSummary>> = Record<
+        string,
+        Array<BopliPublicEntry | BopliBlogPostSummary>
+    >,
     TFields extends Record<string, unknown> = Record<string, unknown>,
 > = {
     site: BopliSite;
@@ -53,6 +56,50 @@ export type BopliEntryProps<
 > = {
     site: BopliSite;
     entry: TEntry;
+    preview?: boolean;
+};
+
+export type BopliBlogTerm = { name: string; slug: string };
+
+export type BopliBlogPostSummary = {
+    title: string | null;
+    slug: string | null;
+    url: string | null;
+    excerpt: string | null;
+    publishedAt: string | null;
+    readingTimeMinutes: number;
+    coverImage: BopliImage | null;
+    categories: BopliBlogTerm[];
+    tags: BopliBlogTerm[];
+};
+
+export type BopliBlogIndexProps = {
+    site: BopliSite;
+    blog: { path: '/blog'; title: string; seoTitle: string | null; seoDescription: string | null };
+    posts: {
+        data: BopliBlogPostSummary[];
+        currentPage: number;
+        lastPage: number;
+        perPage: number;
+        total: number;
+        previousUrl: string | null;
+        nextUrl: string | null;
+    };
+    filters: { q: string; category: string; tag: string };
+    categories: Array<BopliBlogTerm & { parentSlug: string | null }>;
+    tags: BopliBlogTerm[];
+};
+
+export type BopliBlogPostProps = {
+    site: BopliSite;
+    post: BopliBlogPostSummary & {
+        body: string;
+        canonicalPath: string | null;
+        seoTitle: string | null;
+        seoDescription: string | null;
+        previous: BopliBlogPostSummary | null;
+        next: BopliBlogPostSummary | null;
+    };
     preview?: boolean;
 };
 
