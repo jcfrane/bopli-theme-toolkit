@@ -1,5 +1,5 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import semver from 'semver';
 import { RESERVED_ENTRY_FIELDS } from './constants.js';
 import { assertNoSymlinks, validateImports } from './source-validation.js';
@@ -51,6 +51,7 @@ export async function inspectTheme(root: string): Promise<ThemeDefinition> {
     await validateImports(root);
     const starter = await readStarterRecipe(root, templates);
     const author = themeAuthor(packageDefinition);
+    const previewSource = await themePreviewSource(root, bopli.preview);
 
     return {
         root,
@@ -63,11 +64,30 @@ export async function inspectTheme(root: string): Promise<ThemeDefinition> {
         colorModes: Array.isArray(bopli.colorModes)
             ? bopli.colorModes.filter((mode): mode is string => typeof mode === 'string')
             : [],
-        previewSource: typeof bopli.preview === 'string' ? bopli.preview : null,
+        previewSource,
         settings: themeSettings(bopli.settings),
         templates,
         starter,
     };
+}
+
+async function themePreviewSource(root: string, value: unknown): Promise<string | null> {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string' || value.length === 0) {
+        throw new Error('The configured theme preview must be a non-empty file path.');
+    }
+
+    const source = resolve(root, value);
+    const relativeSource = relative(root, source);
+    if (
+        relativeSource.startsWith('..') ||
+        isAbsolute(relativeSource) ||
+        !(await stat(source)).isFile()
+    ) {
+        throw new Error('The configured theme preview must be a file inside the theme root.');
+    }
+
+    return relativeSource.split(sep).join('/');
 }
 
 async function readPackage(root: string): Promise<JsonObject> {

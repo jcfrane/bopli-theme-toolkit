@@ -4,7 +4,7 @@
     "version": "0.1.0",
     "type": "module",
     "description": "A minimal Bopli theme starter.",
-    "author": "Bopli",
+    "author": "Boply",
     "license": "MIT",
     "bopli": {
         "handle": "starter-theme",

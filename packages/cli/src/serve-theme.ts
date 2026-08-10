@@ -11,13 +11,7 @@ import type { CliOptions, ThemeDefinition } from './types.js';
 
 export async function serveTheme(theme: ThemeDefinition, options: CliOptions): Promise<void> {
     const port = Number(options.port ?? 5174);
-    const descriptor = descriptorFor(
-        theme,
-        `.${PUBLIC_DEV_ENTRY}`,
-        [],
-        [{ path: PUBLIC_DEV_ENTRY.slice(1), size: 1, sha256: '0'.repeat(64) }],
-        null,
-    );
+    const descriptor = developmentDescriptorFor(theme);
     const server = await createServer({
         root: theme.root,
         configFile: false,
@@ -60,13 +54,7 @@ async function registerDevelopmentRelease(
     const descriptorDirectory = join(appPath, 'storage/framework/theme-dev');
     await mkdir(descriptorDirectory, { recursive: true });
 
-    const descriptor = descriptorFor(
-        theme,
-        `.${PUBLIC_DEV_ENTRY}`,
-        [],
-        [{ path: PUBLIC_DEV_ENTRY.slice(1), size: 1, sha256: '0'.repeat(64) }],
-        null,
-    );
+    const descriptor = developmentDescriptorFor(theme);
     await writeFile(
         join(descriptorDirectory, `${theme.handle}.json`),
         `${JSON.stringify(descriptor, null, 2)}\n`,
@@ -85,6 +73,18 @@ async function registerDevelopmentRelease(
         await closeServer();
         throw new Error('The local Bopli application could not register the development release.');
     }
+}
+
+export function developmentDescriptorFor(theme: ThemeDefinition): ReturnType<typeof descriptorFor> {
+    const preview = theme.previewSource ? `./${theme.previewSource}` : null;
+    const files = [
+        { path: PUBLIC_DEV_ENTRY.slice(1), size: 1, sha256: '0'.repeat(64) },
+        ...(theme.previewSource
+            ? [{ path: theme.previewSource, size: 1, sha256: '0'.repeat(64) }]
+            : []),
+    ];
+
+    return descriptorFor(theme, `.${PUBLIC_DEV_ENTRY}`, [], files, preview);
 }
 
 export function developmentRegistrationArguments(

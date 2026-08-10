@@ -3,12 +3,13 @@ import { resolve } from 'node:path';
 import { buildTheme } from './build-theme.js';
 import { inspectTheme } from './inspect-theme.js';
 import {
+    developmentDescriptorFor,
     developmentRegistrationArguments,
     serveTheme,
 } from './serve-theme.js';
 import { parseOptions } from './utilities.js';
 
-export { inspectTheme, developmentRegistrationArguments };
+export { inspectTheme, developmentDescriptorFor, developmentRegistrationArguments };
 
 export async function run(argv: string[]): Promise<void> {
     const command = argv[0];

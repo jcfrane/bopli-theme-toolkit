@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { developmentRegistrationArguments, inspectTheme } from '../dist/cli.js';
+import {
+    developmentDescriptorFor,
+    developmentRegistrationArguments,
+    inspectTheme,
+} from '../dist/cli.js';
 
 const TOOLKIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -59,6 +63,25 @@ test('uses package.json as the complete theme source manifest', async () => {
         assert.equal(theme.version, '0.2.0');
         assert.equal(theme.author, 'Theme Author');
         assert.equal(theme.settings.accent?.default, '#112233');
+    });
+});
+
+test('serves a declared preview from the local theme watch release', async () => {
+    await withStarterTheme(async (root) => {
+        await mkdir(join(root, 'resources/images'), { recursive: true });
+        await writeFile(join(root, 'resources/images/preview.png'), 'preview');
+
+        const path = join(root, 'package.json');
+        const packageDefinition = JSON.parse(await readFile(path, 'utf8')) as {
+            bopli: Record<string, unknown>;
+        };
+        packageDefinition.bopli.preview = 'resources/images/preview.png';
+        await writeFile(path, JSON.stringify(packageDefinition));
+
+        const descriptor = developmentDescriptorFor(await inspectTheme(root));
+
+        assert.equal(descriptor.preview, './resources/images/preview.png');
+        assert(descriptor.files.some((file) => file.path === 'resources/images/preview.png'));
     });
 });
 
