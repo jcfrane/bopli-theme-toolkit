@@ -1,4 +1,11 @@
-import { inject, type InjectionKey } from 'vue';
+import {
+    inject,
+    onScopeDispose,
+    onServerPrefetch,
+    shallowRef,
+    type InjectionKey,
+    type Ref,
+} from 'vue';
 
 export type BopliImage = {
     url: string;
@@ -26,6 +33,9 @@ export type BopliPage<TFields extends Record<string, unknown> = Record<string, u
 
 export type BopliTerm = { name: string; slug: string };
 
+export type BopliThemeSettingValue = string | boolean | BopliImage | null;
+export type BopliThemeSettings = Record<string, BopliThemeSettingValue>;
+
 export type BopliPublicEntry<TFields extends Record<string, unknown> = Record<string, unknown>> = {
     title: string;
     slug: string;
@@ -34,16 +44,18 @@ export type BopliPublicEntry<TFields extends Record<string, unknown> = Record<st
     terms: Record<string, BopliTerm[]>;
 } & TFields;
 
+export type BopliQueriedEntry<
+    TFields extends Record<string, unknown> = Record<string, unknown>,
+> = BopliPublicEntry & {
+    fields: TFields;
+};
+
 export type BopliPageProps<
-    TSlots extends Record<string, Array<BopliPublicEntry | BopliBlogPostSummary>> = Record<
-        string,
-        Array<BopliPublicEntry | BopliBlogPostSummary>
-    >,
     TFields extends Record<string, unknown> = Record<string, unknown>,
 > = {
     site: BopliSite;
     page: BopliPage<TFields>;
-    slots: TSlots;
+    settings: BopliThemeSettings;
     preview?: boolean;
 };
 
@@ -56,6 +68,7 @@ export type BopliEntryProps<
 > = {
     site: BopliSite;
     entry: TEntry;
+    settings: BopliThemeSettings;
     preview?: boolean;
 };
 
@@ -75,6 +88,7 @@ export type BopliBlogPostSummary = {
 
 export type BopliBlogIndexProps = {
     site: BopliSite;
+    settings: BopliThemeSettings;
     blog: { path: '/blog'; title: string; seoTitle: string | null; seoDescription: string | null };
     posts: {
         data: BopliBlogPostSummary[];
@@ -92,6 +106,7 @@ export type BopliBlogIndexProps = {
 
 export type BopliBlogPostProps = {
     site: BopliSite;
+    settings: BopliThemeSettings;
     post: BopliBlogPostSummary & {
         body: string;
         canonicalPath: string | null;
@@ -107,11 +122,64 @@ export type BopliNavigation = {
     visit(url: string): void;
 };
 
+export type BopliContentSource =
+    | 'pages'
+    | 'blog.posts'
+    | 'blog.categories'
+    | 'blog.tags'
+    | 'content.entries'
+    | 'content.taxonomies'
+    | 'content.terms'
+    | (string & {});
+
+export type BopliContentQuery = {
+    source: BopliContentSource;
+    model?: string;
+    taxonomy?: string;
+    fields?: string[];
+    filter?: Record<string, string | number | boolean>;
+    sort?: string;
+    limit?: number;
+    page?: number;
+};
+
+export type BopliContentMeta = {
+    currentPage: number;
+    lastPage: number;
+    perPage: number;
+    total: number;
+};
+
+export type BopliContentLinks = {
+    previous: string | null;
+    next: string | null;
+};
+
+export type BopliContentResponse<T> = {
+    data: T[];
+    meta: BopliContentMeta;
+    links: BopliContentLinks;
+};
+
+export type BopliContentClient = {
+    query<T>(query: BopliContentQuery, options?: { signal?: AbortSignal }): Promise<BopliContentResponse<T>>;
+};
+
+export type BopliQueryState<T> = {
+    data: Readonly<Ref<T[]>>;
+    meta: Readonly<Ref<BopliContentMeta | null>>;
+    links: Readonly<Ref<BopliContentLinks | null>>;
+    loading: Readonly<Ref<boolean>>;
+    error: Readonly<Ref<Error | null>>;
+    refresh(): Promise<void>;
+};
+
 export type BopliThemeMountPayload = {
     element: HTMLElement;
     template: string;
     props: Record<string, unknown>;
     navigation: BopliNavigation;
+    content: BopliContentClient;
 };
 
 export type BopliThemeSession = {
@@ -128,6 +196,10 @@ export const BOPLI_NAVIGATION_KEY: InjectionKey<BopliNavigation> = Symbol.for(
     'bopli.theme.navigation',
 ) as InjectionKey<BopliNavigation>;
 
+export const BOPLI_CONTENT_KEY: InjectionKey<BopliContentClient> = Symbol.for(
+    'bopli.theme.content',
+) as InjectionKey<BopliContentClient>;
+
 export function useBopliNavigation(): BopliNavigation {
     const navigation = inject(BOPLI_NAVIGATION_KEY);
 
@@ -136,4 +208,57 @@ export function useBopliNavigation(): BopliNavigation {
     }
 
     return navigation;
+}
+
+export function useBopliContent(): BopliContentClient {
+    const content = inject(BOPLI_CONTENT_KEY);
+
+    if (!content) {
+        throw new Error('Bopli theme content is only available inside the theme runtime.');
+    }
+
+    return content;
+}
+
+export function useBopliQuery<T = Record<string, unknown>>(query: BopliContentQuery): BopliQueryState<T> {
+    const content = useBopliContent();
+    const data = shallowRef<T[]>([]);
+    const meta = shallowRef<BopliContentMeta | null>(null);
+    const links = shallowRef<BopliContentLinks | null>(null);
+    const loading = shallowRef(true);
+    const error = shallowRef<Error | null>(null);
+    let controller: AbortController | null = null;
+
+    const refresh = async (): Promise<void> => {
+        controller?.abort();
+        const requestController = new AbortController();
+        controller = requestController;
+        loading.value = true;
+        error.value = null;
+
+        try {
+            const response = await content.query<T>(query, { signal: requestController.signal });
+            data.value = response.data;
+            meta.value = response.meta;
+            links.value = response.links;
+        } catch (reason) {
+            if (requestController.signal.aborted) return;
+            error.value = reason instanceof Error ? reason : new Error('Bopli content query failed.');
+        } finally {
+            if (!requestController.signal.aborted) loading.value = false;
+        }
+    };
+
+    const initial = refresh();
+    onServerPrefetch(() => initial);
+    onScopeDispose(() => controller?.abort());
+
+    return {
+        data,
+        meta,
+        links,
+        loading,
+        error,
+        refresh,
+    };
 }

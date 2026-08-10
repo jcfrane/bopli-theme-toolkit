@@ -1,8 +1,7 @@
 <bopli lang="json">
 {
   "name": "Standard page",
-  "default": true,
-  "slots": {}
+  "default": true
 }
 </bopli>
 

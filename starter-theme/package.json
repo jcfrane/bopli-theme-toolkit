@@ -1,0 +1,16 @@
+{
+    "name": "@bopli-theme/starter-theme",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "description": "A minimal Bopli theme starter.",
+    "author": "Bopli",
+    "license": "MIT",
+    "bopli": {
+        "handle": "starter-theme",
+        "name": "Starter Theme",
+        "requires": "^0.1",
+        "colorModes": ["light", "dark"],
+        "settings": {}
+    }
+}

@@ -1,5 +1,5 @@
 import type { StarterModel } from './starter-content-model.js';
-import type { ThemeTemplate, ThemeTemplates } from './types.js';
+import type { ThemeTemplates } from './types.js';
 import {
     assertHandle,
     assertObject,
@@ -34,12 +34,11 @@ export function validateStarterPage(
     value: unknown,
     index: number,
     templates: ThemeTemplates,
-    models: Map<string, StarterModel>,
 ): void {
     assertObject(value, `Starter pages[${index}] must be a JSON object.`);
     assertOnlyKeys(
         value,
-        ['title', 'path', 'template', 'status', 'data', 'seoTitle', 'seoDescription', 'bindings'],
+        ['title', 'path', 'template', 'status', 'data', 'seoTitle', 'seoDescription'],
         `starter pages[${index}]`,
     );
     assertString(value.title, `Starter pages[${index}].title`, 255);
@@ -51,7 +50,6 @@ export function validateStarterPage(
     }
     assertPublicationStatus(value.status, `Starter page [${value.title}].status`);
     assertObject(value.data, `Starter page [${value.title}].data must be a JSON object.`);
-    validateBindings(value.title, value.bindings, template, models);
 }
 
 function validatePagePath(value: unknown, title: string): asserts value is string {
@@ -62,76 +60,5 @@ function validatePagePath(value: unknown, title: string): asserts value is strin
         value.startsWith('/blog/')
     ) {
         throw new Error(`Starter page [${title}] contains an invalid or reserved path.`);
-    }
-}
-
-function validateBindings(
-    pageTitle: string,
-    value: unknown,
-    template: ThemeTemplate,
-    models: Map<string, StarterModel>,
-): void {
-    const bindings = boundedArray(value, `page [${pageTitle}].bindings`, 20, true);
-    const slots = new Set<string>();
-
-    for (const binding of bindings) {
-        const slot = validateStarterBinding(pageTitle, binding, template, models);
-        if (slots.has(slot)) {
-            throw new Error(`Starter page [${pageTitle}] binds slot [${slot}] more than once.`);
-        }
-        slots.add(slot);
-    }
-}
-
-function validateStarterBinding(
-    pageTitle: string,
-    value: unknown,
-    template: ThemeTemplate,
-    models: Map<string, StarterModel>,
-): string {
-    assertObject(value, `A starter binding on [${pageTitle}] must be a JSON object.`);
-    assertOnlyKeys(
-        value,
-        ['slot', 'source', 'model', 'mode', 'filters', 'fieldMap', 'sortField', 'sortDirection', 'limit'],
-        `starter binding on [${pageTitle}]`,
-    );
-    assertHandle(value.slot, `Starter binding slot on [${pageTitle}]`);
-    const slot = value.slot;
-    if (!template.slots?.[slot]) {
-        throw new Error(`Starter page [${pageTitle}] binds undeclared slot [${slot}].`);
-    }
-    if (value.source !== 'content_model' && value.source !== 'blog_posts') {
-        throw new Error(`Starter binding [${pageTitle}.${slot}] has an unsupported source.`);
-    }
-    if (value.source === 'content_model') validateBindingModel(pageTitle, slot, value.model, models);
-    if (value.mode !== undefined && value.mode !== 'automatic' && value.mode !== 'manual') {
-        throw new Error(`Starter binding [${pageTitle}.${slot}] has an invalid mode.`);
-    }
-    if (
-        value.sortDirection !== undefined &&
-        value.sortDirection !== 'asc' &&
-        value.sortDirection !== 'desc'
-    ) {
-        throw new Error(`Starter binding [${pageTitle}.${slot}] has an invalid sort direction.`);
-    }
-    if (
-        value.limit !== undefined &&
-        (!Number.isInteger(value.limit) || (value.limit as number) < 1 || (value.limit as number) > 50)
-    ) {
-        throw new Error(`Starter binding [${pageTitle}.${slot}] has an invalid limit.`);
-    }
-
-    return slot;
-}
-
-function validateBindingModel(
-    pageTitle: string,
-    slot: string,
-    value: unknown,
-    models: Map<string, StarterModel>,
-): void {
-    assertHandle(value, `Starter binding [${pageTitle}.${slot}] model`);
-    if (!models.has(value)) {
-        throw new Error(`Starter binding [${pageTitle}.${slot}] references an unknown Content Model.`);
     }
 }

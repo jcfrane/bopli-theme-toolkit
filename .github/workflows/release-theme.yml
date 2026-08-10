@@ -59,8 +59,8 @@ jobs:
           ASSET_BASE_URL: ${{ inputs.asset-base-url }}
         run: |
           set -euo pipefail
-          HANDLE=$(node -p "require('./composer.json').extra.bopli.handle")
-          VERSION=$(node -p "require('./composer.json').version")
+          HANDLE=$(node -p "require('./package.json').bopli.handle")
+          VERSION=$(node -p "require('./package.json').version")
           RELEASE_HASH=$(cat .bopli-release-hash)
           PREFIX="themes/${HANDLE}/${VERSION}/${RELEASE_HASH}"
           aws s3 cp dist "s3://${R2_BUCKET}/${PREFIX}" --recursive --exclude "theme.json" --endpoint-url "${R2_ENDPOINT}" --cache-control "public,max-age=31536000,immutable"

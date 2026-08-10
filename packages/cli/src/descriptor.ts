@@ -31,6 +31,7 @@ export function descriptorFor(
         bopli: theme.constraint,
         preview,
         colorModes: theme.colorModes,
+        settings: theme.settings,
         templates,
         ...(theme.starter ? { starter: theme.starter } : {}),
         runtime: { entry, styles },

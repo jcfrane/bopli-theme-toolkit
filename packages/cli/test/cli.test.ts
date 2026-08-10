@@ -16,6 +16,7 @@ test('validates the starter theme contract', async () => {
     assert.equal(theme.templates.page?.default, true);
     assert.equal(theme.templates.entry?.default, true);
     assert.equal(theme.starter?.version, 1);
+    assert.deepEqual(theme.settings, {});
     assert.equal((theme.starter?.pages[0] as { path?: string })?.path, '/');
 });
 
@@ -24,7 +25,6 @@ test('requires Page and Entry templates with exactly one default each', async ()
         await writeTemplate(root, 'pages', 'Landing.vue', {
             name: 'Landing',
             default: true,
-            slots: {},
         });
 
         await assert.rejects(inspectTheme(root), /Page templates must mark exactly one/);
@@ -34,6 +34,55 @@ test('requires Page and Entry templates with exactly one default each', async ()
         await rm(join(root, 'resources/js/templates/entries'), { recursive: true, force: true });
 
         await assert.rejects(inspectTheme(root), /at least one Entry template/);
+    });
+});
+
+test('uses package.json as the complete theme source manifest', async () => {
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'package.json');
+        const packageDefinition = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+        packageDefinition.version = '0.2.0';
+        packageDefinition.author = { name: 'Theme Author' };
+        packageDefinition.bopli = {
+            handle: 'package-theme',
+            name: 'Package Theme',
+            requires: '^0.1',
+            settings: {
+                accent: { name: 'Accent', type: 'color', default: '#112233' },
+            },
+        };
+        await writeFile(path, JSON.stringify(packageDefinition));
+
+        const theme = await inspectTheme(root);
+
+        assert.equal(theme.handle, 'package-theme');
+        assert.equal(theme.version, '0.2.0');
+        assert.equal(theme.author, 'Theme Author');
+        assert.equal(theme.settings.accent?.default, '#112233');
+    });
+});
+
+test('rejects obsolete Page slots and invalid theme setting defaults', async () => {
+    await withStarterTheme(async (root) => {
+        await writeTemplate(root, 'pages', 'Home.vue', {
+            name: 'Home',
+            slots: { posts: { name: 'Posts' } },
+        });
+
+        await assert.rejects(inspectTheme(root), /may not declare slots/);
+    });
+
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'package.json');
+        const packageDefinition = JSON.parse(await readFile(path, 'utf8')) as {
+            bopli: Record<string, unknown>;
+        };
+        packageDefinition.bopli.settings = {
+            layout: { name: 'Layout', type: 'select', default: 'grid', options: ['list'] },
+        };
+        await writeFile(path, JSON.stringify(packageDefinition));
+
+        await assert.rejects(inspectTheme(root), /default must be one of its options/);
     });
 });
 

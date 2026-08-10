@@ -43,8 +43,7 @@
       "status": "published",
       "data": {
         "body": "Start publishing with Bopli."
-      },
-      "bindings": []
+      }
     }
   ],
   "blog": {

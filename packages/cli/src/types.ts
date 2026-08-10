@@ -8,17 +8,22 @@ export type TemplateField = {
     required?: boolean;
 };
 
-export type TemplateSlot = {
-    name: string;
-};
-
 export type ThemeTemplate = {
     name: string;
     kind: TemplateKind;
     default: boolean;
     source: string;
     fields?: Record<string, TemplateField>;
-    slots?: Record<string, TemplateSlot>;
+};
+
+export type ThemeSettingType = 'text' | 'boolean' | 'select' | 'color' | 'image';
+
+export type ThemeSetting = {
+    name: string;
+    type: ThemeSettingType;
+    description?: string;
+    default: string | boolean | null;
+    options?: string[];
 };
 
 export type ThemeTemplates = Record<string, ThemeTemplate>;
@@ -41,6 +46,7 @@ export type ThemeDefinition = {
     author: string | null;
     colorModes: string[];
     previewSource: string | null;
+    settings: Record<string, ThemeSetting>;
     templates: ThemeTemplates;
     starter: StarterRecipe | null;
 };
@@ -64,6 +70,7 @@ export type ThemeDescriptor = {
     bopli: string;
     preview: string | null;
     colorModes: string[];
+    settings: Record<string, ThemeSetting>;
     templates: Record<string, PublicThemeTemplate>;
     starter?: StarterRecipe;
     runtime: { entry: string; styles: string[] };

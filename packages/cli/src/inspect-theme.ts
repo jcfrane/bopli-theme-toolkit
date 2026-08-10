@@ -8,8 +8,9 @@ import type {
     JsonObject,
     TemplateField,
     TemplateKind,
-    TemplateSlot,
     ThemeDefinition,
+    ThemeSetting,
+    ThemeSettingType,
     ThemeTemplate,
     ThemeTemplates,
 } from './types.js';
@@ -29,23 +30,17 @@ const TEMPLATE_DIRECTORIES: Array<[string, TemplateKind]> = [
 
 export async function inspectTheme(root: string): Promise<ThemeDefinition> {
     await assertNoSymlinks(root);
-    const composer = await readComposer(root);
-    const extra = composer.extra;
-    const bopli = extra && typeof extra === 'object' && !Array.isArray(extra)
-        ? (extra as JsonObject).bopli
-        : undefined;
-
-    if (composer.type !== 'bopli-theme' || typeof composer.version !== 'string' || !bopli) {
-        throw new Error('composer.json must declare a bopli-theme type, version, and extra.bopli metadata.');
-    }
-    assertObject(bopli, 'extra.bopli must be a JSON object.');
+    const packageDefinition = await readPackage(root);
+    const bopli = packageDefinition.bopli;
+    assertObject(bopli, 'package.json bopli metadata must be a JSON object.');
     if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(bopli.handle ?? '')) || typeof bopli.name !== 'string') {
-        throw new Error('extra.bopli must contain a valid handle and name.');
+        throw new Error('package.json bopli metadata must contain a valid handle and name.');
     }
     if (
-        !semver.valid(composer.version) ||
-        typeof bopli.constraint !== 'string' ||
-        !semver.validRange(bopli.constraint)
+        typeof packageDefinition.version !== 'string' ||
+        !semver.valid(packageDefinition.version) ||
+        typeof bopli.requires !== 'string' ||
+        !semver.validRange(bopli.requires)
     ) {
         throw new Error('The theme version and Bopli constraint must be valid semver values.');
     }
@@ -54,28 +49,29 @@ export async function inspectTheme(root: string): Promise<ThemeDefinition> {
     assertTemplateDefaults(templates);
     await validateImports(root);
     const starter = await readStarterRecipe(root, templates);
-    const author = themeAuthor(composer, bopli);
+    const author = themeAuthor(packageDefinition);
 
     return {
         root,
         handle: String(bopli.handle),
         name: bopli.name,
-        version: composer.version,
-        constraint: bopli.constraint,
-        description: typeof composer.description === 'string' ? composer.description : null,
+        version: packageDefinition.version,
+        constraint: bopli.requires,
+        description: typeof packageDefinition.description === 'string' ? packageDefinition.description : null,
         author,
         colorModes: Array.isArray(bopli.colorModes)
             ? bopli.colorModes.filter((mode): mode is string => typeof mode === 'string')
             : [],
         previewSource: typeof bopli.preview === 'string' ? bopli.preview : null,
+        settings: themeSettings(bopli.settings),
         templates,
         starter,
     };
 }
 
-async function readComposer(root: string): Promise<JsonObject> {
-    const value = JSON.parse(await readFile(join(root, 'composer.json'), 'utf8')) as unknown;
-    assertObject(value, 'composer.json must contain a JSON object.');
+async function readPackage(root: string): Promise<JsonObject> {
+    const value = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as unknown;
+    assertObject(value, 'package.json must contain a JSON object.');
 
     return value;
 }
@@ -121,7 +117,9 @@ async function inspectTemplate(
     const contents = await readFile(join(templateRoot, filename), 'utf8');
     const metadata = parseMetadata(contents, `${directory}/${filename}`);
     const fields = metadata.fields === undefined ? undefined : templateFields(metadata.fields, directory, filename);
-    const slots = metadata.slots === undefined ? undefined : templateSlots(metadata.slots, directory, filename);
+    if (metadata.slots !== undefined) {
+        throw new Error(`Template [${directory}/${filename}] may not declare slots.`);
+    }
 
     if (kind === 'entry' && (!fields || Object.keys(fields).length === 0)) {
         throw new Error(`Entry template [${directory}/${filename}] must declare fields.`);
@@ -135,18 +133,14 @@ async function inspectTemplate(
     if (kind === 'page' && fields) {
         throw new Error(`Page template [${directory}/${filename}] may not declare fields.`);
     }
-    if (kind === 'entry' && slots) {
-        throw new Error(`Entry template [${directory}/${filename}] may not declare slots.`);
-    }
-    if ((kind === 'blog_index' || kind === 'blog_post') && (fields || slots)) {
-        throw new Error(`Native Blog template [${directory}/${filename}] may not declare fields or slots.`);
+    if ((kind === 'blog_index' || kind === 'blog_post') && fields) {
+        throw new Error(`Native Blog template [${directory}/${filename}] may not declare fields.`);
     }
 
     return {
         name: typeof metadata.name === 'string' ? metadata.name : headline(handle),
         kind,
         default: metadata.default === true,
-        ...(kind === 'page' ? { slots: slots ?? {} } : {}),
         ...(kind === 'entry' ? { fields: fields ?? {} } : {}),
         source: `/resources/js/templates/${directory}/${filename}`,
     };
@@ -169,12 +163,6 @@ function templateFields(value: unknown, directory: string, filename: string): Re
     assertObject(value, `Template [${directory}/${filename}] fields must be a JSON object.`);
 
     return value as Record<string, TemplateField>;
-}
-
-function templateSlots(value: unknown, directory: string, filename: string): Record<string, TemplateSlot> {
-    assertObject(value, `Template [${directory}/${filename}] slots must be a JSON object.`);
-
-    return value as Record<string, TemplateSlot>;
 }
 
 function assertTemplateDefaults(templates: ThemeTemplates): void {
@@ -203,12 +191,53 @@ function byKind(templates: ThemeTemplates, kind: TemplateKind): ThemeTemplate[] 
     return Object.values(templates).filter((template) => template.kind === kind);
 }
 
-function themeAuthor(composer: JsonObject, bopli: JsonObject): string | null {
-    if (typeof bopli.author === 'string') return bopli.author;
-    if (!Array.isArray(composer.authors)) return null;
-    const author = composer.authors[0];
+function themeAuthor(packageDefinition: JsonObject): string | null {
+    if (typeof packageDefinition.author === 'string') return packageDefinition.author;
+    if (!packageDefinition.author || typeof packageDefinition.author !== 'object' || Array.isArray(packageDefinition.author)) return null;
 
-    return author && typeof author === 'object' && 'name' in author && typeof author.name === 'string'
-        ? author.name
+    return 'name' in packageDefinition.author && typeof packageDefinition.author.name === 'string'
+        ? packageDefinition.author.name
         : null;
+}
+
+function themeSettings(value: unknown): Record<string, ThemeSetting> {
+    if (value === undefined) return {};
+    assertObject(value, 'Theme settings must be a JSON object.');
+    if (Object.keys(value).length > 20) throw new Error('A theme may declare at most 20 settings.');
+
+    return Object.fromEntries(Object.entries(value).map(([handle, definition]) => {
+        if (!/^[A-Za-z0-9_-]{1,80}$/.test(handle)) throw new Error(`Theme setting [${handle}] has an invalid handle.`);
+        assertObject(definition, `Theme setting [${handle}] must be a JSON object.`);
+        const type = definition.type;
+        if (!['text', 'boolean', 'select', 'color', 'image'].includes(String(type))) {
+            throw new Error(`Theme setting [${handle}] has an unsupported type.`);
+        }
+        if (typeof definition.name !== 'string' || definition.name.length === 0 || definition.name.length > 255) {
+            throw new Error(`Theme setting [${handle}] must declare a name.`);
+        }
+        if (definition.description !== undefined && typeof definition.description !== 'string') {
+            throw new Error(`Theme setting [${handle}] has an invalid description.`);
+        }
+        validateSettingDefault(handle, type as ThemeSettingType, definition.default, definition.options);
+
+        return [handle, definition as ThemeSetting];
+    }));
+}
+
+function validateSettingDefault(handle: string, type: ThemeSettingType, value: unknown, options: unknown): void {
+    if (type === 'boolean' && typeof value !== 'boolean') throw new Error(`Theme setting [${handle}] requires a boolean default.`);
+    if (type === 'image' && value !== null) throw new Error(`Theme setting [${handle}] requires a null image default.`);
+    if (type === 'color' && (typeof value !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value))) {
+        throw new Error(`Theme setting [${handle}] requires a six-digit hex color default.`);
+    }
+    if (type === 'text' && (typeof value !== 'string' || value.length > 500)) {
+        throw new Error(`Theme setting [${handle}] requires a text default no longer than 500 characters.`);
+    }
+    if (type !== 'select') return;
+    if (!Array.isArray(options) || options.length === 0 || options.length > 20 || options.some((option) => typeof option !== 'string')) {
+        throw new Error(`Theme setting [${handle}] requires string options.`);
+    }
+    if (typeof value !== 'string' || !options.includes(value)) {
+        throw new Error(`Theme setting [${handle}] default must be one of its options.`);
+    }
 }

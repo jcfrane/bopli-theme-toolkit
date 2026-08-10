@@ -61,7 +61,7 @@ function validateStarterRecipe(
 
     contentModels.forEach((model, index) => validateStarterModel(model, index, templates, models));
     entries.forEach((entry, index) => validateStarterEntry(entry, index, models));
-    pages.forEach((page, index) => validateStarterPage(page, index, templates, models));
+    pages.forEach((page, index) => validateStarterPage(page, index, templates));
     validateBlog(recipe.blog);
 
     recipe.contentModels = contentModels as JsonObject[];

@@ -1,7 +1,6 @@
 <bopli lang="json">
 {
-  "name": "Home",
-  "slots": {}
+  "name": "Home"
 }
 </bopli>
 

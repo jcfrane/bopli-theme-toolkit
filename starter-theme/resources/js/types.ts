@@ -10,9 +10,6 @@ type StarterEntry = BopliPublicEntry<{ body: string }> & {
     seoDescription: string | null;
 };
 
-export type StarterPageProps = BopliPageProps<
-    Record<string, never[]>,
-    { body?: string }
->;
+export type StarterPageProps = BopliPageProps<{ body?: string }>;
 
 export type StarterEntryProps = BopliEntryProps<StarterEntry>;

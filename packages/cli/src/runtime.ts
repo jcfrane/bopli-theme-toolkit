@@ -46,11 +46,11 @@ export function runtimeSource(theme: ThemeDefinition): string {
 
     return `
 import { createApp, defineComponent, h, shallowReactive } from 'vue';
-import { BOPLI_NAVIGATION_KEY } from '@bopli/theme-sdk';
+import { BOPLI_CONTENT_KEY, BOPLI_NAVIGATION_KEY } from '@bopli/theme-sdk';
 ${imports.join('\n')}
 const templates = { ${registrations.join(', ')} };
 export const runtimeApiVersion = ${RUNTIME_API_VERSION};
-export function mount({ element, template, props, navigation }) {
+export function mount({ element, template, props, navigation, content }) {
     if (!templates[template]) throw new Error('Unknown theme template: ' + template);
     const state = shallowReactive({ template, props });
     const Root = defineComponent({
@@ -59,6 +59,7 @@ export function mount({ element, template, props, navigation }) {
     });
     const app = createApp(Root);
     app.provide(BOPLI_NAVIGATION_KEY, navigation);
+    app.provide(BOPLI_CONTENT_KEY, content);
     app.mount(element);
     const handleClick = (event) => {
         const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
