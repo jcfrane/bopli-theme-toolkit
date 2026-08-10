@@ -22,4 +22,6 @@ test('exports the protocol-v1 Blog, settings, and content-query contracts', asyn
     assert.match(source, /readingTimeMinutes: number/);
     assert.match(source, /previous: BopliBlogPostSummary \| null/);
     assert.match(source, /next: BopliBlogPostSummary \| null/);
+    assert.match(source, /owner: \{/);
+    assert.match(source, /profileImage: BopliImage \| null/);
 });

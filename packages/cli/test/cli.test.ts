@@ -136,8 +136,14 @@ test('rejects Vite glob and environment access', async () => {
 
 test('discovers one native Blog template pair and makes both defaults', async () => {
     await withStarterTheme(async (root) => {
-        await writeTemplate(root, 'blogs', 'Journal.vue', { name: 'Journal' });
-        await writeTemplate(root, 'posts', 'Article.vue', { name: 'Article' });
+        await writeTemplate(root, 'pages', 'Journal.vue', {
+            name: 'Journal',
+            kind: 'blog_index',
+        });
+        await writeTemplate(root, 'entries', 'Article.vue', {
+            name: 'Article',
+            kind: 'blog_post',
+        });
 
         const theme = await inspectTheme(root);
 
@@ -145,7 +151,7 @@ test('discovers one native Blog template pair and makes both defaults', async ()
             name: 'Journal',
             kind: 'blog_index',
             default: true,
-            source: '/resources/js/templates/blogs/Journal.vue',
+            source: '/resources/js/templates/pages/Journal.vue',
         });
         assert.equal(theme.templates.article?.kind, 'blog_post');
         assert.equal(theme.templates.article?.default, true);
@@ -154,7 +160,10 @@ test('discovers one native Blog template pair and makes both defaults', async ()
 
 test('requires native Blog index and post templates as a pair', async () => {
     await withStarterTheme(async (root) => {
-        await writeTemplate(root, 'blogs', 'Blog.vue', { name: 'Blog' });
+        await writeTemplate(root, 'pages', 'Blog.vue', {
+            name: 'Blog',
+            kind: 'blog_index',
+        });
 
         await assert.rejects(inspectTheme(root), /as a pair/);
     });
@@ -162,11 +171,39 @@ test('requires native Blog index and post templates as a pair', async () => {
 
 test('requires exactly one default when a Blog template kind has variants', async () => {
     await withStarterTheme(async (root) => {
-        await writeTemplate(root, 'blogs', 'Blog.vue', { name: 'Blog' });
-        await writeTemplate(root, 'blogs', 'Journal.vue', { name: 'Journal' });
-        await writeTemplate(root, 'posts', 'Post.vue', { name: 'Post' });
+        await writeTemplate(root, 'pages', 'Blog.vue', {
+            name: 'Blog',
+            kind: 'blog_index',
+        });
+        await writeTemplate(root, 'pages', 'Journal.vue', {
+            name: 'Journal',
+            kind: 'blog_index',
+        });
+        await writeTemplate(root, 'entries', 'Post.vue', {
+            name: 'Post',
+            kind: 'blog_post',
+        });
 
         await assert.rejects(inspectTheme(root), /Blog index templates must mark exactly one/);
+    });
+});
+
+test('rejects native template kinds in the wrong source directory', async () => {
+    await withStarterTheme(async (root) => {
+        await writeTemplate(root, 'pages', 'Post.vue', {
+            name: 'Post',
+            kind: 'blog_post',
+        });
+
+        await assert.rejects(inspectTheme(root), /declares invalid kind \[blog_post\]/);
+    });
+});
+
+test('rejects legacy Blog and Post template directories', async () => {
+    await withStarterTheme(async (root) => {
+        await writeTemplate(root, 'blogs', 'Blog.vue', { name: 'Blog' });
+
+        await assert.rejects(inspectTheme(root), /Legacy template directory \[blogs\]/);
     });
 });
 

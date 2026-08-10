@@ -1,4 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import semver from 'semver';
 import { RESERVED_ENTRY_FIELDS } from './constants.js';
@@ -24,9 +24,9 @@ import {
 const TEMPLATE_DIRECTORIES: Array<[string, TemplateKind]> = [
     ['pages', 'page'],
     ['entries', 'entry'],
-    ['blogs', 'blog_index'],
-    ['posts', 'blog_post'],
 ];
+
+const LEGACY_TEMPLATE_DIRECTORIES = ['blogs', 'posts'];
 
 export async function inspectTheme(root: string): Promise<ThemeDefinition> {
     await assertNoSymlinks(root);
@@ -45,6 +45,7 @@ export async function inspectTheme(root: string): Promise<ThemeDefinition> {
         throw new Error('The theme version and Bopli constraint must be valid semver values.');
     }
 
+    await assertNoLegacyTemplateDirectories(root);
     const templates = await discoverTemplates(root);
     assertTemplateDefaults(templates);
     await validateImports(root);
@@ -107,15 +108,33 @@ async function discoverTemplates(root: string): Promise<ThemeTemplates> {
     return templates;
 }
 
+async function assertNoLegacyTemplateDirectories(root: string): Promise<void> {
+    for (const directory of LEGACY_TEMPLATE_DIRECTORIES) {
+        const path = join(root, 'resources/js/templates', directory);
+
+        try {
+            if ((await stat(path)).isDirectory()) {
+                throw new Error(
+                    `Legacy template directory [${directory}] is not supported. Put native Blog templates in [pages] or [entries] and declare their kind in the <bopli> block.`,
+                );
+            }
+        } catch (error) {
+            if (isFileSystemError(error, 'ENOENT')) continue;
+            throw error;
+        }
+    }
+}
+
 async function inspectTemplate(
     templateRoot: string,
     directory: string,
     filename: string,
-    kind: TemplateKind,
+    inferredKind: TemplateKind,
     handle: string,
 ): Promise<ThemeTemplate> {
     const contents = await readFile(join(templateRoot, filename), 'utf8');
     const metadata = parseMetadata(contents, `${directory}/${filename}`);
+    const kind = templateKind(metadata.kind, inferredKind, directory, filename);
     const fields = metadata.fields === undefined ? undefined : templateFields(metadata.fields, directory, filename);
     if (metadata.slots !== undefined) {
         throw new Error(`Template [${directory}/${filename}] may not declare slots.`);
@@ -144,6 +163,28 @@ async function inspectTemplate(
         ...(kind === 'entry' ? { fields: fields ?? {} } : {}),
         source: `/resources/js/templates/${directory}/${filename}`,
     };
+}
+
+function templateKind(
+    value: unknown,
+    inferredKind: TemplateKind,
+    directory: string,
+    filename: string,
+): TemplateKind {
+    if (value === undefined) return inferredKind;
+
+    const allowedKinds: Record<string, TemplateKind[]> = {
+        pages: ['page', 'blog_index'],
+        entries: ['entry', 'blog_post'],
+    };
+    const allowed = allowedKinds[directory] ?? [];
+    if (typeof value !== 'string' || !allowed.includes(value as TemplateKind)) {
+        throw new Error(
+            `Template [${directory}/${filename}] declares invalid kind [${String(value)}].`,
+        );
+    }
+
+    return value as TemplateKind;
 }
 
 function parseMetadata(contents: string, file: string): JsonObject {

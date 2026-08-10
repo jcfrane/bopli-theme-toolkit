@@ -21,6 +21,10 @@ export type BopliSite = {
     description?: string | null;
     socialLinks?: Array<{ label: string; url: string }>;
     canonicalUrl: string;
+    owner: {
+        name: string;
+        profileImage: BopliImage | null;
+    } | null;
 };
 
 export type BopliPage<TFields extends Record<string, unknown> = Record<string, unknown>> = {

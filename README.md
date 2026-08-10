@@ -13,7 +13,7 @@ Licensed under the MIT License.
 Theme repositories install the public packages:
 
 ```sh
-npm install --save-dev --save-exact @bopli/theme-cli@0.2.0 @bopli/theme-sdk@0.2.0
+npm install --save-dev --save-exact @bopli/theme-cli@0.3.0 @bopli/theme-sdk@0.3.0
 npx bopli-theme validate .
 npx bopli-theme build .
 npx bopli-theme dev . --app ../bopli-app
@@ -43,7 +43,7 @@ Theme identity, compatibility, chooser metadata, and optional presentation setti
 
 Themes may import relative files, `vue`, and `@bopli/theme-sdk`. Application aliases, Inertia, Node built-ins, remote imports, arbitrary packages, and non-literal dynamic imports are rejected before Vite runs.
 
-Every theme supplies at least one Page and one generic Entry template with exactly one default of each kind. A single candidate becomes the default automatically; variants mark one `<bopli>` metadata block with `"default": true`. Optional native Blog archive/post templates follow the same paired-default rule. Entry projection fields cannot shadow Bopli metadata such as `url`, SEO, or adjacent-navigation keys. Page slot declarations are obsolete and rejected.
+Every theme supplies templates only under `resources/js/templates/pages` and `resources/js/templates/entries`, with at least one ordinary Page and one generic Entry template and exactly one default of each kind. Directory placement infers ordinary kinds. Native Blog templates opt in with `"kind": "blog_index"` in `pages` or `"kind": "blog_post"` in `entries`; they follow the same paired-default rule. Legacy `blogs` and `posts` roots are rejected. A single candidate becomes the default automatically; variants mark one `<bopli>` metadata block with `"default": true`. Entry projection fields cannot shadow Bopli metadata such as `url`, SEO, or adjacent-navigation keys. Page slot declarations are obsolete and rejected.
 
 Themes select the dynamic collections needed by their design through the host-injected `BopliContentClient` or `useBopliQuery()`. The browser host currently provides a bounded same-origin transport; the interface and Vue server-prefetch integration allow a future SSR host to supply a server transport without rewriting theme components.
 
