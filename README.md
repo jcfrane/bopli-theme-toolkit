@@ -5,7 +5,7 @@ This repository owns the public, versioned boundary between Bopli and independen
 Licensed under the MIT License.
 
 - `@bopli/theme-sdk` contains public prop types plus injected navigation and content-query helpers.
-- `@bopli/theme-cli` validates, builds, and serves convention-based Vue themes without access to Bopli application source.
+- `@bopli/theme-cli` validates, builds, packages, and serves convention-based Vue themes without access to Bopli application source.
 - `starter-theme/` is the minimal source scaffold.
 
 ## Commands
@@ -16,6 +16,7 @@ Theme repositories install the public packages:
 npm install --save-dev --save-exact @bopli/theme-cli@0.3.0 @bopli/theme-sdk@0.3.0
 npx bopli-theme validate .
 npx bopli-theme build .
+npx bopli-theme package .
 npx bopli-theme dev . --app ../bopli-app
 ```
 
@@ -28,16 +29,19 @@ npm test
 npm run check
 node packages/cli/bin/bopli-theme.js validate ../dev-cosmo
 node packages/cli/bin/bopli-theme.js build ../dev-cosmo
+node packages/cli/bin/bopli-theme.js package ../dev-cosmo
 node packages/cli/bin/bopli-theme.js dev ../dev-cosmo --app ../bopli-app
 ```
 
-The SDK and CLI are strict TypeScript projects compiled to their package-local `dist/` directories. The CLI entry point only parses and dispatches commands; theme inspection, source-boundary validation, descriptor generation, build orchestration, the development server, and starter-recipe validation live in focused modules under `packages/cli/src/`. The published executable remains a minimal JavaScript shebang wrapper because Node package bins must be directly executable, and it loads the compiled TypeScript output.
+The SDK and CLI are strict TypeScript projects compiled to their package-local `dist/` directories. The CLI entry point only parses and dispatches commands; theme inspection, source-boundary validation, descriptor generation, build orchestration, deterministic release packaging, the development server, and starter-recipe validation live in focused modules under `packages/cli/src/`. The published executable remains a minimal JavaScript shebang wrapper because Node package bins must be directly executable, and it loads the compiled TypeScript output.
 
 Theme source is TypeScript too: normal modules use `.ts`, Vue components use `<script setup lang="ts">`, and each theme runs `vue-tsc` before a production build. `starter-theme/` is the canonical checked scaffold.
 
 Theme identity, compatibility, chooser metadata, and optional presentation settings live in the normal `package.json` under `bopli`. Composer metadata is not used. The five setting types are `text`, `boolean`, `select`, `color`, and `image`; Bopli merges declared defaults with per-Site overrides and supplies the resulting `settings` prop to every template.
 
 `build` writes immutable ESM, CSS, assets, and protocol-v1 `theme.json` to the theme's `dist/` directory. It also writes the computed release hash to the ignored `.bopli-release-hash` file for CI upload paths. Until Bopli is explicitly declared production, the protocol, manifest schema, runtime ABI, and nested recipe versions always remain `1`; package and theme-release versions use SemVer independently.
+
+`package` performs the same validated production build and writes `{handle}-{version}-{release-hash}.zip` beside the theme source. The archive contains only the path-sorted contents of `dist/` at its root and normalizes timestamps, permissions, compression, and entry ordering, so the same release produces byte-identical ZIP output. It is ready for the landlord **Upload release** workflow.
 
 `dev` accepts a relative theme path, starts a CORS-restricted Vite watch server, and can register the development release through the local Bopli Docker stack. Production registration is always performed by Bopli's `bopli:theme:install` command against the uploaded HTTPS `theme.json` URL.
 

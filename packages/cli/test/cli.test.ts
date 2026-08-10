@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
     developmentDescriptorFor,
     developmentRegistrationArguments,
     inspectTheme,
+    packageTheme,
 } from '../dist/cli.js';
 
 const TOOLKIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -22,6 +23,41 @@ test('validates the starter theme contract', async () => {
     assert.equal(theme.starter?.version, 1);
     assert.deepEqual(theme.settings, {});
     assert.equal((theme.starter?.pages[0] as { path?: string })?.path, '/');
+});
+
+test('packages a deterministic upload-ready ZIP with compiled files at its root', async () => {
+    await withStarterTheme(async (root) => {
+        await mkdir(join(root, 'node_modules/@bopli'), { recursive: true });
+        await symlink(
+            join(TOOLKIT_ROOT, 'packages/sdk'),
+            join(root, 'node_modules/@bopli/theme-sdk'),
+            'dir',
+        );
+        const theme = await inspectTheme(root);
+        const output = join(root, 'dist');
+        const first = await packageTheme(theme, output);
+        const firstBytes = await readFile(first.archive);
+        const descriptor = JSON.parse(await readFile(join(output, 'theme.json'), 'utf8')) as {
+            files: Array<{ path: string }>;
+        };
+        const expectedEntries = ['theme.json', ...descriptor.files.map((file) => file.path)].sort(
+            comparePaths,
+        );
+
+        assert.equal(
+            basename(first.archive),
+            `${theme.handle}-${theme.version}-${first.releaseHash}.zip`,
+        );
+        assert.deepEqual(zipEntryNames(firstBytes), expectedEntries);
+        assert.equal(
+            (await readFile(join(root, '.bopli-release-hash'), 'utf8')).trim(),
+            first.releaseHash,
+        );
+
+        const second = await packageTheme(theme, output);
+        assert.equal(second.archive, first.archive);
+        assert.deepEqual(await readFile(second.archive), firstBytes);
+    });
 });
 
 test('requires Page and Entry templates with exactly one default each', async () => {
@@ -282,4 +318,34 @@ async function writeTemplate(
         join(templateRoot, filename),
         `<bopli lang="json">\n${JSON.stringify(metadata)}\n</bopli>\n<template><main /></template>\n`,
     );
+}
+
+function comparePaths(left: string, right: string): number {
+    return Buffer.from(left).compare(Buffer.from(right));
+}
+
+function zipEntryNames(archive: Buffer): string[] {
+    let end = -1;
+    for (let offset = archive.length - 22; offset >= Math.max(0, archive.length - 65_557); offset--) {
+        if (archive.readUInt32LE(offset) === 0x06054b50) {
+            end = offset;
+            break;
+        }
+    }
+
+    assert.notEqual(end, -1, 'ZIP end-of-central-directory record is missing.');
+    const entries = archive.readUInt16LE(end + 10);
+    let offset = archive.readUInt32LE(end + 16);
+    const names: string[] = [];
+
+    for (let index = 0; index < entries; index++) {
+        assert.equal(archive.readUInt32LE(offset), 0x02014b50);
+        const nameLength = archive.readUInt16LE(offset + 28);
+        const extraLength = archive.readUInt16LE(offset + 30);
+        const commentLength = archive.readUInt16LE(offset + 32);
+        names.push(archive.subarray(offset + 46, offset + 46 + nameLength).toString('utf8'));
+        offset += 46 + nameLength + extraLength + commentLength;
+    }
+
+    return names;
 }

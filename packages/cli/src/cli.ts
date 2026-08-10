@@ -2,6 +2,7 @@ import { realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { buildTheme } from './build-theme.js';
 import { inspectTheme } from './inspect-theme.js';
+import { packageTheme } from './package-theme.js';
 import {
     developmentDescriptorFor,
     developmentRegistrationArguments,
@@ -9,7 +10,12 @@ import {
 } from './serve-theme.js';
 import { parseOptions } from './utilities.js';
 
-export { inspectTheme, developmentDescriptorFor, developmentRegistrationArguments };
+export {
+    inspectTheme,
+    packageTheme,
+    developmentDescriptorFor,
+    developmentRegistrationArguments,
+};
 
 export async function run(argv: string[]): Promise<void> {
     const command = argv[0];
@@ -17,9 +23,9 @@ export async function run(argv: string[]): Promise<void> {
     const sourceRoot = await realpath(resolve(sourceArgument));
     const options = parseOptions(argv.slice(sourceArgument === '.' ? 1 : 2));
 
-    if (command !== 'validate' && command !== 'build' && command !== 'dev') {
+    if (command !== 'validate' && command !== 'build' && command !== 'package' && command !== 'dev') {
         throw new Error(
-            'Usage: bopli-theme <validate|build|dev> [theme-path] [--out-dir dist] [--port 5174] [--app ../bopli-app]',
+            'Usage: bopli-theme <validate|build|package|dev> [theme-path] [--out-dir dist] [--port 5174] [--app ../bopli-app]',
         );
     }
 
@@ -32,12 +38,21 @@ export async function run(argv: string[]): Promise<void> {
         return;
     }
 
-    if (command === 'build') {
+    if (command === 'build' || command === 'package') {
         const outputOption = options['out-dir'];
         const output = resolve(
             sourceRoot,
             typeof outputOption === 'string' ? outputOption : 'dist',
         );
+
+        if (command === 'package') {
+            const packaged = await packageTheme(theme, output);
+            process.stdout.write(
+                `Packaged [${theme.handle}] ${theme.version} to [${packaged.archive}] with release hash [${packaged.releaseHash}].\n`,
+            );
+            return;
+        }
+
         const releaseHash = await buildTheme(theme, output);
         process.stdout.write(
             `Built [${theme.handle}] ${theme.version} to [${output}] with release hash [${releaseHash}].\n`,

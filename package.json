@@ -16,13 +16,14 @@
         "build:starter": "npm run build && npm run types:starter && node packages/cli/bin/bopli-theme.js build starter-theme"
     },
     "devDependencies": {
-        "@vitejs/plugin-vue": "^6.0.0",
-        "@vue/compiler-sfc": "^3.5.13",
         "@types/node": "^22.13.5",
         "@types/semver": "^7.7.1",
+        "@types/yazl": "^3.3.1",
+        "@vitejs/plugin-vue": "^6.0.0",
+        "@vue/compiler-sfc": "^3.5.13",
         "semver": "^7.7.2",
-        "typescript": "^5.9.3",
         "tsx": "^4.20.6",
+        "typescript": "^5.9.3",
         "vite": "^8.0.0",
         "vue": "^3.5.13",
         "vue-tsc": "^2.2.4"
