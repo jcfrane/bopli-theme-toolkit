@@ -28,6 +28,9 @@ export async function validateImports(root: string): Promise<void> {
         if (/import\(\s*(?!["'])/.test(contents)) {
             throw new Error(`Non-literal dynamic import is not allowed in [${relative(root, file)}].`);
         }
+        if (/\b(?:process|global|Buffer|require|__dirname|__filename)\b/.test(contents)) {
+            throw new Error(`Server globals and privileged module schemes are not allowed in [${relative(root, file)}].`);
+        }
 
         for (const match of contents.matchAll(IMPORT_PATTERN)) {
             const specifier = match[1] ?? match[2];

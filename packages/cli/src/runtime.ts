@@ -85,3 +85,35 @@ export function mount({ element, template, props, navigation, content }) {
 }
 `;
 }
+
+export function serverRuntimeSource(theme: ThemeDefinition): string {
+    const imports: string[] = [];
+    const registrations: string[] = [];
+    let index = 0;
+
+    for (const [handle, template] of Object.entries(theme.templates)) {
+        const identifier = `Template${index++}`;
+        imports.push(`import ${identifier} from ${JSON.stringify(template.source)};`);
+        registrations.push(`${JSON.stringify(handle)}: ${identifier}`);
+    }
+
+    return `
+import { createSSRApp, defineComponent, h } from 'vue';
+import { renderToString } from '@vue/server-renderer';
+import { BOPLI_CONTENT_KEY, BOPLI_NAVIGATION_KEY } from '@bopli/theme-sdk';
+${imports.join('\n')}
+const templates = { ${registrations.join(', ')} };
+export const runtimeApiVersion = ${RUNTIME_API_VERSION};
+export async function render({ template, props, content }) {
+    if (!templates[template]) throw new Error('Unknown theme template: ' + template);
+    const Root = defineComponent({
+        name: 'BopliThemeSsrRoot',
+        setup: () => () => h(templates[template], props),
+    });
+    const app = createSSRApp(Root);
+    app.provide(BOPLI_NAVIGATION_KEY, { visit() {} });
+    app.provide(BOPLI_CONTENT_KEY, content);
+    return renderToString(app);
+}
+`;
+}

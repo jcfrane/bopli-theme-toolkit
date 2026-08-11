@@ -2,17 +2,19 @@ import vue from '@vitejs/plugin-vue';
 import {
     copyFile,
     mkdir,
+    mkdtemp,
     readFile,
     readdir,
     rm,
     stat,
     writeFile,
 } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'vite';
-import { SDK_PATH, VUE_PATH } from './constants.js';
+import { SDK_PATH, SERVER_RENDERER_PATH, VUE_PATH } from './constants.js';
 import { descriptorFor } from './descriptor.js';
-import { runtimePlugin, runtimeSource } from './runtime.js';
+import { runtimePlugin, runtimeSource, serverRuntimeSource } from './runtime.js';
 import { importBoundaryPlugin } from './source-validation.js';
 import type { ThemeDefinition, ThemeFile } from './types.js';
 import { sha256 } from './utilities.js';
@@ -27,7 +29,12 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
             root: theme.root,
             configFile: false,
             plugins: [importBoundaryPlugin(theme), runtimePlugin(theme), vue()],
-            resolve: { alias: { '@bopli/theme-sdk': SDK_PATH, vue: VUE_PATH } },
+            resolve: { alias: [
+                { find: /^@bopli\/theme-sdk$/, replacement: SDK_PATH },
+                { find: /^@vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
+                { find: /^vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
+                { find: /^vue$/, replacement: VUE_PATH },
+            ] },
             build: {
                 outDir: output,
                 emptyOutDir: true,
@@ -46,14 +53,17 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
     } finally {
         await rm(buildEntry, { force: true });
     }
+    await compileServerRuntime(theme, output, false);
 
     const preview = await copyPreview(theme, output);
     const inventory = await fileInventory(output);
-    const entry = inventory.find((file) => /^assets\/theme-.*\.js$/.test(file.path))?.path;
+    const entry = inventory.find((file) => /^assets\/theme-(?!ssr-).*\.js$/.test(file.path))?.path;
+    const ssrEntry = inventory.find((file) => /^assets\/theme-ssr-.*\.js$/.test(file.path))?.path;
     const styles = inventory
         .filter((file) => file.path.endsWith('.css'))
         .map((file) => `./${file.path}`);
     if (!entry) throw new Error('Vite did not emit a theme entry module.');
+    if (!ssrEntry) throw new Error('Vite did not emit a theme server entry module.');
 
     const releaseHash = sha256(
         inventory.map((file) => `${file.path}:${file.sha256}`).join('\n'),
@@ -61,6 +71,7 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
     const descriptor = descriptorFor(
         theme,
         `./${entry}`,
+        `./${ssrEntry}`,
         styles,
         inventory,
         preview ? `./${preview}` : null,
@@ -69,6 +80,62 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
     await writeFile(join(theme.root, '.bopli-release-hash'), `${releaseHash}\n`);
 
     return releaseHash;
+}
+
+export async function developmentServerArtifact(theme: ThemeDefinition): Promise<{
+    contents: string;
+    file: ThemeFile;
+}> {
+    const output = await mkdtemp(join(tmpdir(), 'bopli-theme-ssr-'));
+
+    try {
+        await compileServerRuntime(theme, output, true);
+        const inventory = await fileInventory(output);
+        const file = inventory.find((candidate) => /^assets\/theme-ssr-.*\.js$/.test(candidate.path));
+        if (!file) throw new Error('Vite did not emit a development theme server entry module.');
+
+        return { contents: await readFile(join(output, file.path), 'utf8'), file };
+    } finally {
+        await rm(output, { recursive: true, force: true });
+    }
+}
+
+async function compileServerRuntime(
+    theme: ThemeDefinition,
+    output: string,
+    emptyOutDir: boolean,
+): Promise<void> {
+    const serverBuildEntry = join(theme.root, '.bopli-build-ssr-entry.ts');
+    await writeFile(serverBuildEntry, serverRuntimeSource(theme));
+
+    try {
+        await build({
+            root: theme.root,
+            configFile: false,
+            plugins: [importBoundaryPlugin(theme), vue()],
+            resolve: { alias: [
+                { find: /^@bopli\/theme-sdk$/, replacement: SDK_PATH },
+                { find: /^@vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
+                { find: /^vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
+                { find: /^vue$/, replacement: VUE_PATH },
+            ] },
+            ssr: { noExternal: true },
+            build: {
+                ssr: serverBuildEntry,
+                outDir: output,
+                emptyOutDir,
+                minify: 'oxc',
+                rollupOptions: {
+                    output: {
+                        entryFileNames: 'assets/theme-ssr-[hash].js',
+                        codeSplitting: false,
+                    },
+                },
+            },
+        });
+    } finally {
+        await rm(serverBuildEntry, { force: true });
+    }
 }
 
 async function copyPreview(theme: ThemeDefinition, output: string): Promise<string | null> {

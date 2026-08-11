@@ -35,7 +35,9 @@ export const RESERVED_ENTRY_FIELDS = new Set([
 export const VIRTUAL_ENTRY = 'virtual:bopli-theme-entry';
 export const RESOLVED_VIRTUAL_ENTRY = '\0bopli:theme-entry';
 export const PUBLIC_DEV_ENTRY = '/__bopli/theme-entry.js';
+export const PUBLIC_DEV_SSR_ENTRY = '/__bopli/theme-ssr.js';
 export const SDK_PATH = fileURLToPath(import.meta.resolve('@bopli/theme-sdk'));
+export const SERVER_RENDERER_PATH = fileURLToPath(import.meta.resolve('@vue/server-renderer'));
 export const VUE_PATH = resolve(
     dirname(fileURLToPath(import.meta.resolve('vue'))),
     'dist/vue.runtime.esm-bundler.js',

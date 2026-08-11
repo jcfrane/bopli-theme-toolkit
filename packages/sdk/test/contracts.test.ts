@@ -14,6 +14,9 @@ test('exports the protocol-v1 Blog, settings, and content-query contracts', asyn
     }
 
     assert.match(source, /export type BopliThemeSettings\b/);
+    assert.match(source, /export type BopliThemeServerRenderPayload\b/);
+    assert.match(source, /export type BopliThemeServerModule\b/);
+    assert.match(source, /render\(payload: BopliThemeServerRenderPayload\): Promise<string>/);
     assert.match(source, /settings: BopliThemeSettings/);
     assert.match(source, /export type BopliContentClient\b/);
     assert.match(source, /export type BopliQueriedEntry\b/);

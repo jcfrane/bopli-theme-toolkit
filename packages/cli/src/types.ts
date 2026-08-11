@@ -73,7 +73,7 @@ export type ThemeDescriptor = {
     settings: Record<string, ThemeSetting>;
     templates: Record<string, PublicThemeTemplate>;
     starter?: StarterRecipe;
-    runtime: { entry: string; styles: string[] };
+    runtime: { entry: string; ssrEntry: string; styles: string[] };
     files: ThemeFile[];
 };
 

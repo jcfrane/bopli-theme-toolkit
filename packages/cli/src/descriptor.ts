@@ -9,6 +9,7 @@ import type {
 export function descriptorFor(
     theme: ThemeDefinition,
     entry: string,
+    ssrEntry: string,
     styles: string[],
     files: ThemeFile[],
     preview: string | null,
@@ -34,7 +35,7 @@ export function descriptorFor(
         settings: theme.settings,
         templates,
         ...(theme.starter ? { starter: theme.starter } : {}),
-        runtime: { entry, styles },
+        runtime: { entry, ssrEntry, styles },
         files,
     };
 }

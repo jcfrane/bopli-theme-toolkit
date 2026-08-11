@@ -196,6 +196,17 @@ export type BopliThemeModule = {
     mount(payload: BopliThemeMountPayload): BopliThemeSession;
 };
 
+export type BopliThemeServerRenderPayload = {
+    template: string;
+    props: Record<string, unknown>;
+    content: BopliContentClient;
+};
+
+export type BopliThemeServerModule = {
+    runtimeApiVersion: number;
+    render(payload: BopliThemeServerRenderPayload): Promise<string>;
+};
+
 export const BOPLI_NAVIGATION_KEY: InjectionKey<BopliNavigation> = Symbol.for(
     'bopli.theme.navigation',
 ) as InjectionKey<BopliNavigation>;
