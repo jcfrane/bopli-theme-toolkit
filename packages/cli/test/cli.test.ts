@@ -3,7 +3,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import {
     developmentDescriptorFor,
     developmentRegistrationArguments,
@@ -62,10 +62,13 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
             first.releaseHash,
         );
 
+        const serverSource = await readFile(
+            join(output, descriptor.runtime.ssrEntry.replace(/^\.\//, '')),
+            'utf8',
+        );
+        assert.doesNotMatch(serverSource, /(?:createRequire|from["']node:)/);
         const serverModule = (await import(
-            pathToFileURL(
-                join(output, descriptor.runtime.ssrEntry.replace(/^\.\//, '')),
-            ).href
+            `data:text/javascript;charset=utf-8,${encodeURIComponent(serverSource)}`
         )) as {
             runtimeApiVersion: number;
             render(payload: {
@@ -153,8 +156,12 @@ test('awaits SDK content queries while server-rendering a template', async () =>
         const descriptor = JSON.parse(await readFile(join(output, 'theme.json'), 'utf8')) as {
             runtime: { ssrEntry: string };
         };
+        const serverSource = await readFile(
+            join(output, descriptor.runtime.ssrEntry.replace(/^\.\//, '')),
+            'utf8',
+        );
         const serverModule = (await import(
-            pathToFileURL(join(output, descriptor.runtime.ssrEntry.replace(/^\.\//, ''))).href
+            `data:text/javascript;charset=utf-8,${encodeURIComponent(serverSource)}`
         )) as {
             render(payload: Record<string, unknown>): Promise<string>;
         };
