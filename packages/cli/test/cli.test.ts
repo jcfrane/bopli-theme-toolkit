@@ -182,6 +182,41 @@ test('rejects imports that escape the theme repository', async () => {
     });
 });
 
+test('allows the bounded Shiki imports used by syntax-highlighting themes', async () => {
+    await withStarterTheme(async (root) => {
+        await appendToHome(
+            root,
+            [
+                '',
+                '<script setup>',
+                "import { createHighlighterCore } from 'shiki/core';",
+                "import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';",
+                "import githubDark from '@shikijs/themes/github-dark';",
+                "const language = () => import('@shikijs/langs/typescript');",
+                'void createHighlighterCore;',
+                'void createJavaScriptRegexEngine;',
+                'void githubDark;',
+                'void language;',
+                '</script>',
+                '',
+            ].join('\n'),
+        );
+
+        await inspectTheme(root);
+    });
+});
+
+test('continues to reject Shiki imports outside the bounded allowlist', async () => {
+    await withStarterTheme(async (root) => {
+        await appendToHome(
+            root,
+            "\n<script setup>\nconst language = () => import('@shikijs/langs/wasm');\nvoid language;\n</script>\n",
+        );
+
+        await assert.rejects(inspectTheme(root), /Import \[@shikijs\/langs\/wasm\] is not allowed/);
+    });
+});
+
 test('rejects Vite glob and environment access', async () => {
     await withStarterTheme(async (root) => {
         await appendToHome(

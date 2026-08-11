@@ -13,7 +13,7 @@ Licensed under the MIT License.
 Theme repositories install the public packages:
 
 ```sh
-npm install --save-dev --save-exact @bopli/theme-cli@0.3.0 @bopli/theme-sdk@0.3.0
+npm install --save-dev --save-exact @bopli/theme-cli@0.4.0 @bopli/theme-sdk@0.3.0
 npx bopli-theme validate .
 npx bopli-theme build .
 npx bopli-theme package .
@@ -45,7 +45,7 @@ Theme identity, compatibility, chooser metadata, and optional presentation setti
 
 `dev` accepts a relative theme path, starts a CORS-restricted Vite watch server, and can register the development release through the local Bopli Docker stack. Production registration is always performed by Bopli's `bopli:theme:install` command against the uploaded HTTPS `theme.json` URL.
 
-Themes may import relative files, `vue`, and `@bopli/theme-sdk`. Application aliases, Inertia, Node built-ins, remote imports, arbitrary packages, and non-literal dynamic imports are rejected before Vite runs.
+Themes may import relative files, `vue`, and `@bopli/theme-sdk`. The exact Shiki core, JavaScript engine, GitHub Dark theme, and language subpaths used by Dev Cosmo are also allowed; other package imports remain rejected. Application aliases, Inertia, Node built-ins, remote imports, and non-literal dynamic imports are rejected before Vite runs.
 
 Every theme supplies templates only under `resources/js/templates/pages` and `resources/js/templates/entries`, with at least one ordinary Page and one generic Entry template and exactly one default of each kind. Directory placement infers ordinary kinds. Native Blog templates opt in with `"kind": "blog_index"` in `pages` or `"kind": "blog_post"` in `entries`; they follow the same paired-default rule. Legacy `blogs` and `posts` roots are rejected. A single candidate becomes the default automatically; variants mark one `<bopli>` metadata block with `"default": true`. Entry projection fields cannot shadow Bopli metadata such as `url`, SEO, or adjacent-navigation keys. Page slot declarations are obsolete and rejected.
 
