@@ -34,6 +34,16 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
             join(root, 'node_modules/@bopli/theme-sdk'),
             'dir',
         );
+        await mkdir(join(root, 'resources/images'), { recursive: true });
+        await writeFile(
+            join(root, 'resources/images/marker.svg'),
+            '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><circle cx="4" cy="4" r="4"/></svg>',
+        );
+        const pageTemplate = join(root, 'resources/js/templates/pages/Page.vue');
+        await writeFile(
+            pageTemplate,
+            `${await readFile(pageTemplate, 'utf8')}\n<style>.asset-marker { background-image: url('../../../images/marker.svg'); }</style>\n`,
+        );
         const theme = await inspectTheme(root);
         const output = join(root, 'dist');
         const first = await packageTheme(theme, output);
@@ -57,10 +67,29 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
                 (file) => `./${file.path}` === descriptor.runtime.ssrEntry,
             ),
         );
+        const imageAsset = descriptor.files.find((file) => file.path.endsWith('.svg'));
+        assert(imageAsset, 'Expected the imported image to remain a separate release artifact.');
+        const stylesheet = await readFile(
+            join(root, 'dist', descriptor.runtime.styles[0].replace(/^\.\//, '')),
+            'utf8',
+        );
+        assert.match(stylesheet, /marker-[^)]+\.svg/);
+        assert.doesNotMatch(stylesheet, /data:image\/svg\+xml/);
         assert.equal(
             (await readFile(join(root, '.bopli-release-hash'), 'utf8')).trim(),
             first.releaseHash,
         );
+
+        const browserSource = await readFile(
+            join(output, descriptor.runtime.entry.replace(/^\.\//, '')),
+            'utf8',
+        );
+        assert.doesNotMatch(browserSource, /from["']vue(?:\/[^"']*)?["']/);
+        const browserModule = (await import(
+            `data:text/javascript;charset=utf-8,${encodeURIComponent(browserSource)}`
+        )) as { runtimeApiVersion: number; mount: unknown };
+        assert.equal(browserModule.runtimeApiVersion, 1);
+        assert.equal(typeof browserModule.mount, 'function');
 
         const serverSource = await readFile(
             join(output, descriptor.runtime.ssrEntry.replace(/^\.\//, '')),

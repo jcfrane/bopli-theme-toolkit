@@ -1,6 +1,6 @@
 {
     "name": "@bopli/theme-cli",
-    "version": "0.5.1",
+    "version": "0.5.2",
     "description": "Validate, build, package, and locally serve independently deployed Bopli themes.",
     "type": "module",
     "license": "MIT",

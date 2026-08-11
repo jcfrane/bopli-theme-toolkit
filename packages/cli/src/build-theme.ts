@@ -38,11 +38,15 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
             build: {
                 outDir: output,
                 emptyOutDir: true,
+                assetsInlineLimit: 0,
                 cssCodeSplit: false,
                 minify: 'oxc',
-                lib: { entry: buildEntry, formats: ['es'], fileName: 'theme' },
+                modulePreload: false,
                 rollupOptions: {
+                    input: buildEntry,
+                    preserveEntrySignatures: 'strict',
                     output: {
+                        format: 'es',
                         entryFileNames: 'assets/theme-[hash].js',
                         chunkFileNames: 'assets/chunk-[hash].js',
                         assetFileNames: 'assets/[name]-[hash][extname]',
