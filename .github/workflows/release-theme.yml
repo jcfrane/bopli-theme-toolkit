@@ -8,7 +8,7 @@ on:
         default: '22'
       toolkit-version:
         type: string
-        default: '0.1.1'
+        default: '0.5.3'
       asset-base-url:
         description: Public HTTPS origin used to serve the theme bucket
         type: string
@@ -44,9 +44,15 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           cache: npm
-          cache-dependency-path: .bopli-toolkit/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            .bopli-toolkit/package-lock.json
       - run: npm ci --prefix .bopli-toolkit
       - run: npm test --prefix .bopli-toolkit
+      - name: Install pinned theme dependencies
+        run: |
+          ln --symbolic "${GITHUB_WORKSPACE}/.bopli-toolkit" "${GITHUB_WORKSPACE}/../bopli-theme-toolkit"
+          npm ci
       - run: node .bopli-toolkit/packages/cli/bin/bopli-theme.js validate .
       - run: node .bopli-toolkit/packages/cli/bin/bopli-theme.js build .
       - name: Upload immutable release
