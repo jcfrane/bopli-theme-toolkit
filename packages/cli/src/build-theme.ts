@@ -1,14 +1,5 @@
 import vue from '@vitejs/plugin-vue';
-import {
-    copyFile,
-    mkdir,
-    mkdtemp,
-    readFile,
-    readdir,
-    rm,
-    stat,
-    writeFile,
-} from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'vite';
@@ -16,10 +7,12 @@ import { SDK_PATH, SERVER_RENDERER_PATH, VUE_PATH } from './constants.js';
 import { descriptorFor } from './descriptor.js';
 import { runtimePlugin, runtimeSource, serverRuntimeSource } from './runtime.js';
 import { importBoundaryPlugin } from './source-validation.js';
+import { generateThemeTypes } from './type-generation.js';
 import type { ThemeDefinition, ThemeFile } from './types.js';
 import { sha256 } from './utilities.js';
 
 export async function buildTheme(theme: ThemeDefinition, output: string): Promise<string> {
+    await generateThemeTypes(theme);
     await rm(output, { recursive: true, force: true });
     const buildEntry = join(theme.root, '.bopli-build-entry.ts');
     await writeFile(buildEntry, runtimeSource(theme));
@@ -29,12 +22,14 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
             root: theme.root,
             configFile: false,
             plugins: [importBoundaryPlugin(theme), runtimePlugin(theme), vue()],
-            resolve: { alias: [
-                { find: /^@bopli\/theme-sdk$/, replacement: SDK_PATH },
-                { find: /^@vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
-                { find: /^vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
-                { find: /^vue$/, replacement: VUE_PATH },
-            ] },
+            resolve: {
+                alias: [
+                    { find: /^@bopli\/theme-sdk$/, replacement: SDK_PATH },
+                    { find: /^@vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
+                    { find: /^vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
+                    { find: /^vue$/, replacement: VUE_PATH },
+                ],
+            },
             build: {
                 outDir: output,
                 emptyOutDir: true,
@@ -90,12 +85,15 @@ export async function developmentServerArtifact(theme: ThemeDefinition): Promise
     contents: string;
     file: ThemeFile;
 }> {
+    await generateThemeTypes(theme);
     const output = await mkdtemp(join(tmpdir(), 'bopli-theme-ssr-'));
 
     try {
         await compileServerRuntime(theme, output, true);
         const inventory = await fileInventory(output);
-        const file = inventory.find((candidate) => /^assets\/theme-ssr-.*\.js$/.test(candidate.path));
+        const file = inventory.find((candidate) =>
+            /^assets\/theme-ssr-.*\.js$/.test(candidate.path),
+        );
         if (!file) throw new Error('Vite did not emit a development theme server entry module.');
 
         return { contents: await readFile(join(output, file.path), 'utf8'), file };
@@ -117,12 +115,14 @@ async function compileServerRuntime(
             root: theme.root,
             configFile: false,
             plugins: [importBoundaryPlugin(theme), vue()],
-            resolve: { alias: [
-                { find: /^@bopli\/theme-sdk$/, replacement: SDK_PATH },
-                { find: /^@vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
-                { find: /^vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
-                { find: /^vue$/, replacement: VUE_PATH },
-            ] },
+            resolve: {
+                alias: [
+                    { find: /^@bopli\/theme-sdk$/, replacement: SDK_PATH },
+                    { find: /^@vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
+                    { find: /^vue\/server-renderer$/, replacement: SERVER_RENDERER_PATH },
+                    { find: /^vue$/, replacement: VUE_PATH },
+                ],
+            },
             ssr: { noExternal: true },
             build: {
                 ssr: serverBuildEntry,

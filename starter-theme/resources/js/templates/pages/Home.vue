@@ -5,16 +5,16 @@
 </bopli>
 
 <script setup lang="ts">
-import type { StarterPageProps } from '../../types';
+import type { HomeProps } from '../../.bopli/types';
 
-defineProps<StarterPageProps>();
+defineProps<HomeProps>();
 </script>
 
 <template>
   <main>
     <h1>{{ page.title }}</h1>
     <p>{{ site.tagline }}</p>
-    <p v-if="page.fields.body">{{ page.fields.body }}</p>
+    <p v-if="typeof page.fields.body === 'string'">{{ page.fields.body }}</p>
   </main>
 </template>
 

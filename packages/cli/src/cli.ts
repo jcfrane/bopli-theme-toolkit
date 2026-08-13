@@ -8,6 +8,7 @@ import {
     developmentRegistrationArguments,
     serveTheme,
 } from './serve-theme.js';
+import { generateThemeTypes } from './type-generation.js';
 import { parseOptions } from './utilities.js';
 
 export {
@@ -15,6 +16,7 @@ export {
     packageTheme,
     developmentDescriptorFor,
     developmentRegistrationArguments,
+    generateThemeTypes,
 };
 
 export async function run(argv: string[]): Promise<void> {
@@ -23,9 +25,15 @@ export async function run(argv: string[]): Promise<void> {
     const sourceRoot = await realpath(resolve(sourceArgument));
     const options = parseOptions(argv.slice(sourceArgument === '.' ? 1 : 2));
 
-    if (command !== 'validate' && command !== 'build' && command !== 'package' && command !== 'dev') {
+    if (
+        command !== 'validate' &&
+        command !== 'types' &&
+        command !== 'build' &&
+        command !== 'package' &&
+        command !== 'dev'
+    ) {
         throw new Error(
-            'Usage: bopli-theme <validate|build|package|dev> [theme-path] [--out-dir dist] [--port 5174] [--app ../bopli-app]',
+            'Usage: bopli-theme <validate|types|build|package|dev> [theme-path] [--out-dir dist] [--port 5174] [--app ../bopli-app]',
         );
     }
 
@@ -35,6 +43,12 @@ export async function run(argv: string[]): Promise<void> {
         process.stdout.write(
             `Theme [${theme.handle}] ${theme.version} is valid with ${Object.keys(theme.templates).length} templates.\n`,
         );
+        return;
+    }
+
+    const generatedTypes = await generateThemeTypes(theme);
+    if (command === 'types') {
+        process.stdout.write(`Generated theme types at [${generatedTypes}].\n`);
         return;
     }
 

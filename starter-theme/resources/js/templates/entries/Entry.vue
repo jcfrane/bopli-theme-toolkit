@@ -9,9 +9,9 @@
 </bopli>
 
 <script setup lang="ts">
-import type { StarterEntryProps } from '../../types';
+import type { EntryProps } from '../../.bopli/types';
 
-defineProps<StarterEntryProps>();
+defineProps<EntryProps>();
 </script>
 
 <template>

@@ -2,9 +2,22 @@ export type JsonObject = Record<string, unknown>;
 
 export type TemplateKind = 'page' | 'entry' | 'blog_index' | 'blog_post';
 
+export type ContentFieldType =
+    | 'short_text'
+    | 'long_text'
+    | 'rich_text'
+    | 'number'
+    | 'boolean'
+    | 'date_time'
+    | 'select'
+    | 'slug'
+    | 'image'
+    | 'json'
+    | 'relationship';
+
 export type TemplateField = {
     name: string;
-    type: string;
+    type: ContentFieldType;
     required?: boolean;
 };
 

@@ -12,5 +12,21 @@
         "requires": "^0.1",
         "colorModes": ["light", "dark"],
         "settings": {}
+    },
+    "scripts": {
+        "validate": "bopli-theme validate .",
+        "types": "bopli-theme types .",
+        "types:check": "npm run types && vue-tsc --noEmit -p tsconfig.json",
+        "build": "npm run types:check && bopli-theme build .",
+        "package": "npm run types:check && bopli-theme package .",
+        "dev": "bopli-theme dev . --app ../bopli-app"
+    },
+    "devDependencies": {
+        "@bopli/theme-cli": "0.6.0",
+        "@bopli/theme-sdk": "0.5.0",
+        "typescript": "^5.9.3",
+        "vite": "^8.0.0",
+        "vue": "^3.5.13",
+        "vue-tsc": "^2.2.4"
     }
 }

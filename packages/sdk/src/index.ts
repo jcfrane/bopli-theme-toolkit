@@ -37,10 +37,16 @@ export type BopliPage<TFields extends Record<string, unknown> = Record<string, u
 
 export type BopliTerm = { name: string; slug: string };
 
+export type BopliRelatedEntry = {
+    id: number;
+    title: string;
+    slug: string;
+};
+
 export type BopliThemeSettingValue = string | boolean | BopliImage | null;
 export type BopliThemeSettings = Record<string, BopliThemeSettingValue>;
 
-export type BopliPublicEntry<TFields extends Record<string, unknown> = Record<string, unknown>> = {
+export type BopliPublicEntry<TFields extends Record<string, unknown> = Record<never, never>> = {
     title: string;
     slug: string;
     url: string | null;
@@ -48,31 +54,32 @@ export type BopliPublicEntry<TFields extends Record<string, unknown> = Record<st
     terms: Record<string, BopliTerm[]>;
 } & TFields;
 
-export type BopliQueriedEntry<
-    TFields extends Record<string, unknown> = Record<string, unknown>,
-> = BopliPublicEntry & {
-    fields: TFields;
-};
+export type BopliQueriedEntry<TFields extends Record<string, unknown> = Record<never, never>> =
+    BopliPublicEntry<TFields> & {
+        fields: TFields;
+    };
 
 export type BopliPageProps<
     TFields extends Record<string, unknown> = Record<string, unknown>,
+    TSettings extends BopliThemeSettings = BopliThemeSettings,
 > = {
     site: BopliSite;
     page: BopliPage<TFields>;
-    settings: BopliThemeSettings;
+    settings: TSettings;
     preview?: boolean;
 };
 
 export type BopliEntryProps<
     TEntry extends BopliPublicEntry = BopliPublicEntry & {
         canonicalPath: string;
-        seoTitle: string;
-        seoDescription: unknown;
+        seoTitle: string | null;
+        seoDescription: string | null;
     },
+    TSettings extends BopliThemeSettings = BopliThemeSettings,
 > = {
     site: BopliSite;
     entry: TEntry;
-    settings: BopliThemeSettings;
+    settings: TSettings;
     preview?: boolean;
 };
 
@@ -90,9 +97,9 @@ export type BopliBlogPostSummary = {
     tags: BopliBlogTerm[];
 };
 
-export type BopliBlogIndexProps = {
+export type BopliBlogIndexProps<TSettings extends BopliThemeSettings = BopliThemeSettings> = {
     site: BopliSite;
-    settings: BopliThemeSettings;
+    settings: TSettings;
     blog: { path: '/blog'; title: string; seoTitle: string | null; seoDescription: string | null };
     posts: {
         data: BopliBlogPostSummary[];
@@ -108,9 +115,9 @@ export type BopliBlogIndexProps = {
     tags: BopliBlogTerm[];
 };
 
-export type BopliBlogPostProps = {
+export type BopliBlogPostProps<TSettings extends BopliThemeSettings = BopliThemeSettings> = {
     site: BopliSite;
-    settings: BopliThemeSettings;
+    settings: TSettings;
     post: BopliBlogPostSummary & {
         body: string;
         canonicalPath: string | null;
@@ -133,19 +140,38 @@ export type BopliContentSource =
     | 'blog.tags'
     | 'content.entries'
     | 'content.taxonomies'
-    | 'content.terms'
-    | (string & {});
+    | 'content.terms';
 
-export type BopliContentQuery = {
-    source: BopliContentSource;
+export type BopliContentSort<TField extends string> = TField | `-${TField}`;
+
+type BopliContentQueryBase = {
     model?: string;
     taxonomy?: string;
     fields?: string[];
     filter?: Record<string, string | number | boolean>;
-    sort?: string;
     limit?: number;
     page?: number;
 };
+
+export type BopliContentQuery = BopliContentQueryBase &
+    (
+        | {
+              source: 'pages';
+              sort?: BopliContentSort<'title' | 'path' | 'published_at' | 'created_at'>;
+          }
+        | {
+              source: 'blog.posts';
+              sort?: BopliContentSort<'title' | 'published_at' | 'created_at'>;
+          }
+        | {
+              source: 'blog.categories' | 'blog.tags' | 'content.taxonomies' | 'content.terms';
+              sort?: BopliContentSort<'name' | 'created_at'>;
+          }
+        | {
+              source: 'content.entries';
+              sort?: BopliContentSort<'title' | 'published_at' | 'created_at'>;
+          }
+    );
 
 export type BopliContentMeta = {
     currentPage: number;
@@ -166,7 +192,10 @@ export type BopliContentResponse<T> = {
 };
 
 export type BopliContentClient = {
-    query<T>(query: BopliContentQuery, options?: { signal?: AbortSignal }): Promise<BopliContentResponse<T>>;
+    query<T>(
+        query: BopliContentQuery,
+        options?: { signal?: AbortSignal },
+    ): Promise<BopliContentResponse<T>>;
 };
 
 export type BopliQueryState<T> = {
@@ -235,7 +264,9 @@ export function useBopliContent(): BopliContentClient {
     return content;
 }
 
-export function useBopliQuery<T = Record<string, unknown>>(query: BopliContentQuery): BopliQueryState<T> {
+export function useBopliQuery<T = Record<string, unknown>>(
+    query: BopliContentQuery,
+): BopliQueryState<T> {
     const content = useBopliContent();
     const data = shallowRef<T[]>([]);
     const meta = shallowRef<BopliContentMeta | null>(null);
@@ -258,7 +289,8 @@ export function useBopliQuery<T = Record<string, unknown>>(query: BopliContentQu
             links.value = response.links;
         } catch (reason) {
             if (requestController.signal.aborted) return;
-            error.value = reason instanceof Error ? reason : new Error('Bopli content query failed.');
+            error.value =
+                reason instanceof Error ? reason : new Error('Bopli content query failed.');
         } finally {
             if (!requestController.signal.aborted) loading.value = false;
         }

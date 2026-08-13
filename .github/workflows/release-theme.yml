@@ -8,7 +8,7 @@ on:
         default: '22'
       toolkit-version:
         type: string
-        default: '0.5.4'
+        default: '0.6.0'
 
 permissions:
   contents: read

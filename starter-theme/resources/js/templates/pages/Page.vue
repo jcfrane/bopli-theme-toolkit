@@ -6,9 +6,9 @@
 </bopli>
 
 <script setup lang="ts">
-import type { StarterPageProps } from '../../types';
+import type { PageProps } from '../../.bopli/types';
 
-defineProps<StarterPageProps>();
+defineProps<PageProps>();
 </script>
 
 <template>
@@ -16,7 +16,7 @@ defineProps<StarterPageProps>();
     <a href="/">{{ site.name }}</a>
     <article>
       <h1>{{ page.title }}</h1>
-      <p v-if="page.fields.body">{{ page.fields.body }}</p>
+      <p v-if="typeof page.fields.body === 'string'">{{ page.fields.body }}</p>
     </article>
   </main>
 </template>

@@ -9,7 +9,7 @@
         "build": "npm run build:sdk && npm run build:cli",
         "build:sdk": "tsc -p packages/sdk/tsconfig.json",
         "build:cli": "tsc -p packages/cli/tsconfig.json",
-        "types:starter": "vue-tsc --noEmit -p starter-theme/tsconfig.json",
+        "types:starter": "node packages/cli/bin/bopli-theme.js types starter-theme && vue-tsc --noEmit -p starter-theme/tsconfig.json",
         "types:test": "tsc -p tsconfig.test.json",
         "test": "npm run build && npm run types:test && node --import tsx --test packages/*/test/*.test.ts",
         "check": "npm run build && npm run types:starter && node packages/cli/bin/bopli-theme.js validate starter-theme",

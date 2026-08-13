@@ -5,7 +5,7 @@ This repository owns the public, versioned boundary between Bopli and independen
 Licensed under the MIT License.
 
 - `@bopli/theme-sdk` contains public prop types plus injected navigation and content-query helpers.
-- `@bopli/theme-cli` validates, builds, packages, and serves convention-based Vue themes without access to Bopli application source.
+- `@bopli/theme-cli` validates, generates types, builds, packages, and serves convention-based Vue themes without access to Bopli application source.
 - `starter-theme/` is the minimal source scaffold.
 
 ## Commands
@@ -13,8 +13,9 @@ Licensed under the MIT License.
 Theme repositories install the public packages:
 
 ```sh
-npm install --save-dev --save-exact @bopli/theme-cli@0.5.4 @bopli/theme-sdk@0.4.0
+npm install --save-dev --save-exact @bopli/theme-cli@0.6.0 @bopli/theme-sdk@0.5.0
 npx bopli-theme validate .
+npx bopli-theme types .
 npx bopli-theme build .
 npx bopli-theme package .
 npx bopli-theme dev . --app ../bopli-app
@@ -28,6 +29,7 @@ npm run build
 npm test
 npm run check
 node packages/cli/bin/bopli-theme.js validate ../dev-cosmo
+node packages/cli/bin/bopli-theme.js types ../dev-cosmo
 node packages/cli/bin/bopli-theme.js build ../dev-cosmo
 node packages/cli/bin/bopli-theme.js package ../dev-cosmo
 node packages/cli/bin/bopli-theme.js dev ../dev-cosmo --app ../bopli-app
@@ -35,7 +37,7 @@ node packages/cli/bin/bopli-theme.js dev ../dev-cosmo --app ../bopli-app
 
 The SDK and CLI are strict TypeScript projects compiled to their package-local `dist/` directories. The CLI entry point only parses and dispatches commands; theme inspection, source-boundary validation, descriptor generation, build orchestration, deterministic release packaging, the development server, and starter-recipe validation live in focused modules under `packages/cli/src/`. The published executable remains a minimal JavaScript shebang wrapper because Node package bins must be directly executable, and it loads the compiled TypeScript output.
 
-Theme source is TypeScript too: normal modules use `.ts`, Vue components use `<script setup lang="ts">`, and each theme runs `vue-tsc` before a production build. `starter-theme/` is the canonical checked scaffold.
+Theme source is TypeScript too: normal modules use `.ts`, Vue components use `<script setup lang="ts">`, and each theme runs `vue-tsc` before a production build. `bopli-theme types` generates the ignored `resources/js/.bopli/types.d.ts` contract from package settings and template fields; build, package, and dev regenerate it automatically. `starter-theme/` is the canonical checked scaffold.
 
 Production browser builds preserve the runtime entry exports while emitting imported fonts, images, and other static assets as separate inventoried files. This keeps the render-blocking stylesheet small and lets each immutable asset use the CDN cache independently. Server builds remain self-contained for verified in-memory execution.
 

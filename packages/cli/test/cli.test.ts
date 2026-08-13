@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
     developmentDescriptorFor,
     developmentRegistrationArguments,
+    generateThemeTypes,
     inspectTheme,
     packageTheme,
 } from '../dist/cli.js';
@@ -24,6 +25,59 @@ test('validates the starter theme contract', async () => {
     assert.equal(theme.starter?.version, 1);
     assert.deepEqual(theme.settings, {});
     assert.equal((theme.starter?.pages[0] as { path?: string })?.path, '/');
+});
+
+test('generates settings, field, and pre-bound template prop types from theme metadata', async () => {
+    await withStarterTheme(async (root) => {
+        const packagePath = join(root, 'package.json');
+        const packageDefinition = JSON.parse(await readFile(packagePath, 'utf8')) as {
+            bopli: Record<string, unknown>;
+        };
+        packageDefinition.bopli.settings = {
+            accent_color: { name: 'Accent', type: 'color', default: '#112233' },
+            layout: {
+                name: 'Layout',
+                type: 'select',
+                default: 'grid',
+                options: ['grid', 'list'],
+            },
+            portrait: { name: 'Portrait', type: 'image', default: null },
+            enabled: { name: 'Enabled', type: 'boolean', default: true },
+        };
+        await writeFile(packagePath, JSON.stringify(packageDefinition));
+        await writeTemplate(root, 'entries', 'Entry.vue', {
+            name: 'Entry',
+            default: true,
+            fields: {
+                body: { name: 'Body', type: 'long_text', required: true },
+                titleCopy: { name: 'Title copy', type: 'short_text' },
+                score: { name: 'Score', type: 'number' },
+                image: { name: 'Image', type: 'image' },
+                related: { name: 'Related', type: 'relationship' },
+            },
+        });
+
+        const output = await generateThemeTypes(await inspectTheme(root));
+        const declarations = await readFile(output, 'utf8');
+
+        assert.match(declarations, /accent_color: string;/);
+        assert.match(declarations, /layout: "grid" \| "list";/);
+        assert.match(declarations, /portrait: BopliImage \| null;/);
+        assert.match(declarations, /enabled: boolean;/);
+        assert.match(
+            declarations,
+            /export type HomeProps = BopliPageProps<Record<string, unknown>, ThemeSettings>;/,
+        );
+        assert.match(declarations, /body: string;/);
+        assert.match(declarations, /titleCopy\?: string \| null;/);
+        assert.match(declarations, /score\?: number \| null;/);
+        assert.match(declarations, /image\?: BopliImage \| null;/);
+        assert.match(declarations, /related\?: BopliRelatedEntry\[\] \| null;/);
+        assert.match(
+            declarations,
+            /export type EntryProps = BopliEntryProps<EntryEntry, ThemeSettings>;/,
+        );
+    });
 });
 
 test('keeps tagged releases manual-first and produces an upload-ready Actions ZIP', async () => {
@@ -74,11 +128,7 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
         );
         assert.deepEqual(zipEntryNames(firstBytes), expectedEntries);
         assert.match(descriptor.runtime.ssrEntry, /^\.\/assets\/theme-ssr-.*\.js$/);
-        assert(
-            descriptor.files.some(
-                (file) => `./${file.path}` === descriptor.runtime.ssrEntry,
-            ),
-        );
+        assert(descriptor.files.some((file) => `./${file.path}` === descriptor.runtime.ssrEntry));
         const imageAsset = descriptor.files.find((file) => file.path.endsWith('.svg'));
         assert(imageAsset, 'Expected the imported image to remain a separate release artifact.');
         const stylesheet = await readFile(
@@ -188,8 +238,8 @@ test('awaits SDK content queries while server-rendering a template', async () =>
         await writeFile(
             homePath,
             home.replace(
-                "import type { StarterPageProps } from '../../types';",
-                "import { useBopliQuery } from '@bopli/theme-sdk';\nimport type { StarterPageProps } from '../../types';\nuseBopliQuery({ source: 'pages' });",
+                "import type { HomeProps } from '../../.bopli/types';",
+                "import { useBopliQuery } from '@bopli/theme-sdk';\nimport type { HomeProps } from '../../.bopli/types';\nuseBopliQuery({ source: 'pages' });",
             ),
         );
         const output = join(root, 'dist');
@@ -251,7 +301,10 @@ test('requires Page and Entry templates with exactly one default each', async ()
 test('uses package.json as the complete theme source manifest', async () => {
     await withStarterTheme(async (root) => {
         const path = join(root, 'package.json');
-        const packageDefinition = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+        const packageDefinition = JSON.parse(await readFile(path, 'utf8')) as Record<
+            string,
+            unknown
+        >;
         packageDefinition.version = '0.2.0';
         packageDefinition.author = { name: 'Theme Author' };
         packageDefinition.bopli = {
@@ -299,7 +352,10 @@ test('serves a declared preview from the local theme watch release', async () =>
         assert.equal(descriptor.runtime.entry, './__bopli/theme-entry.js');
         assert.equal(descriptor.runtime.ssrEntry, './__bopli/theme-ssr.js');
         assert.equal(Buffer.byteLength(artifact.contents), artifact.file.size);
-        assert.equal(descriptor.files.find((file) => file.path === '__bopli/theme-ssr.js')?.sha256, artifact.file.sha256);
+        assert.equal(
+            descriptor.files.find((file) => file.path === '__bopli/theme-ssr.js')?.sha256,
+            artifact.file.sha256,
+        );
         assert(descriptor.files.some((file) => file.path === 'resources/images/preview.png'));
     });
 });
@@ -351,6 +407,17 @@ test('rejects Entry contracts that shadow Bopli metadata', async () => {
         });
 
         await assert.rejects(inspectTheme(root), /redeclares reserved field \[url\]/);
+    });
+});
+
+test('rejects invalid Entry field metadata before type generation', async () => {
+    await withStarterTheme(async (root) => {
+        await writeTemplate(root, 'entries', 'Entry.vue', {
+            name: 'Entry',
+            fields: { body: { name: 'Body', type: 'markdown' } },
+        });
+
+        await assert.rejects(inspectTheme(root), /field \[body\] has an unsupported type/);
     });
 });
 
@@ -555,7 +622,11 @@ function comparePaths(left: string, right: string): number {
 
 function zipEntryNames(archive: Buffer): string[] {
     let end = -1;
-    for (let offset = archive.length - 22; offset >= Math.max(0, archive.length - 65_557); offset--) {
+    for (
+        let offset = archive.length - 22;
+        offset >= Math.max(0, archive.length - 65_557);
+        offset--
+    ) {
         if (archive.readUInt32LE(offset) === 0x06054b50) {
             end = offset;
             break;
