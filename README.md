@@ -13,7 +13,7 @@ Licensed under the MIT License.
 Theme repositories install the public packages:
 
 ```sh
-npm install --save-dev --save-exact @bopli/theme-cli@0.5.3 @bopli/theme-sdk@0.4.0
+npm install --save-dev --save-exact @bopli/theme-cli@0.5.4 @bopli/theme-sdk@0.4.0
 npx bopli-theme validate .
 npx bopli-theme build .
 npx bopli-theme package .
@@ -44,6 +44,8 @@ Theme identity, compatibility, chooser metadata, and optional presentation setti
 `build` writes immutable ESM, CSS, assets, and protocol-v1 `theme.json` to the theme's `dist/` directory. It also writes the computed release hash to the ignored `.bopli-release-hash` file for CI upload paths. Until Bopli is explicitly declared production, the protocol, manifest schema, runtime ABI, and nested recipe versions always remain `1`; package and theme-release versions use SemVer independently.
 
 `package` performs the same validated production build and writes `{handle}-{version}-{release-hash}.zip` beside the theme source. The archive contains only the path-sorted contents of `dist/` at its root and normalizes timestamps, permissions, compression, and entry ordering, so the same release produces byte-identical ZIP output. It is ready for the landlord **Upload release** workflow.
+
+The reusable tag workflow validates and builds the theme, then stores the compiled `dist/` contents as a GitHub Actions artifact named `{handle}-{version}-{release-hash}`. Downloading that artifact produces the ZIP accepted by the landlord **Upload release** form. The workflow does not receive object-storage credentials, publish to the theme bucket, or register a release in Bopli.
 
 `dev` accepts a relative theme path, starts a CORS-restricted Vite watch server, and can register the development release through the local Bopli Docker stack. Production registration is always performed by Bopli's `bopli:theme:install` command against the uploaded HTTPS `theme.json` URL.
 

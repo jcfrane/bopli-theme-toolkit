@@ -26,6 +26,18 @@ test('validates the starter theme contract', async () => {
     assert.equal((theme.starter?.pages[0] as { path?: string })?.path, '/');
 });
 
+test('keeps tagged releases manual-first and produces an upload-ready Actions ZIP', async () => {
+    const workflow = await readFile(
+        join(TOOLKIT_ROOT, '.github/workflows/release-theme.yml'),
+        'utf8',
+    );
+
+    assert.match(workflow, /uses: actions\/upload-artifact@[a-f0-9]{40}/);
+    assert.match(workflow, /path: dist\//);
+    assert.match(workflow, /name: \$\{\{ steps\.release\.outputs\.artifact \}\}/);
+    assert.doesNotMatch(workflow, /R2_|THEME_ASSET_BASE_URL|aws s3|bopli:theme:install/);
+});
+
 test('packages a deterministic upload-ready ZIP with compiled files at its root', async () => {
     await withStarterTheme(async (root) => {
         await mkdir(join(root, 'node_modules/@bopli'), { recursive: true });
