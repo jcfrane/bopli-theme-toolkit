@@ -1,0 +1,12 @@
+name: Release theme
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    uses: jcfrane/bopli-theme-toolkit/.github/workflows/release-theme.yml@v__TOOLKIT_VERSION__
+    with:
+      toolkit-version: '__TOOLKIT_VERSION__'

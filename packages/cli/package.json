@@ -1,7 +1,7 @@
 {
     "name": "@bopli/theme-cli",
-    "version": "0.6.0",
-    "description": "Validate, type, build, package, and locally serve independently deployed Bopli themes.",
+    "version": "0.7.0",
+    "description": "Create, validate, type, build, package, and locally preview independently deployed Bopli themes.",
     "type": "module",
     "license": "MIT",
     "repository": {
@@ -26,7 +26,8 @@
     "types": "dist/cli.d.ts",
     "files": [
         "bin",
-        "dist"
+        "dist",
+        "scaffold"
     ],
     "scripts": {
         "build": "tsc -p tsconfig.json"

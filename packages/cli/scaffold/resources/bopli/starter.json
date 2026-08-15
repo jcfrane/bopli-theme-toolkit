@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "contentModels": [
+    {
+      "handle": "article",
+      "name": "Articles",
+      "singularName": "Article",
+      "description": "Structured articles published by the starter theme.",
+      "fields": [
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "long_text",
+          "required": true
+        }
+      ],
+      "publicRoute": {
+        "template": "entry",
+        "path": "/articles/{slug}",
+        "fieldMap": {
+          "body": "body"
+        },
+        "seoDescriptionField": "body"
+      }
+    }
+  ],
+  "entries": [
+    {
+      "model": "article",
+      "title": "Welcome",
+      "slug": "welcome",
+      "status": "draft",
+      "data": {
+        "body": "This entry was created from the theme's starter content."
+      }
+    }
+  ],
+  "pages": [
+    {
+      "title": "Home",
+      "path": "/",
+      "template": "home",
+      "status": "published",
+      "data": {
+        "body": "Start publishing with Bopli."
+      }
+    }
+  ],
+  "blog": {
+    "enabled": false
+  }
+}

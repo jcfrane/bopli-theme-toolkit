@@ -5,13 +5,16 @@ import { basename, dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+    createTheme,
     developmentDescriptorFor,
     developmentRegistrationArguments,
     generateThemeTypes,
     inspectTheme,
     packageTheme,
 } from '../dist/cli.js';
-import { developmentServerArtifact } from '../dist/build-theme.js';
+import { buildTheme, developmentServerArtifact } from '../dist/build-theme.js';
+import { previewFixtureFor } from '../dist/preview-fixtures.js';
+import { previewHarnessHtml, previewHarnessSource } from '../dist/preview-harness.js';
 
 const TOOLKIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -25,6 +28,151 @@ test('validates the starter theme contract', async () => {
     assert.equal(theme.starter?.version, 1);
     assert.deepEqual(theme.settings, {});
     assert.equal((theme.starter?.pages[0] as { path?: string })?.path, '/');
+});
+
+test('derives standalone props and query fixtures for every declared template', async () => {
+    await withStarterTheme(async (root) => {
+        const packagePath = join(root, 'package.json');
+        const packageDefinition = JSON.parse(await readFile(packagePath, 'utf8')) as {
+            bopli: Record<string, unknown>;
+        };
+        packageDefinition.bopli.settings = {
+            accent: { name: 'Accent', type: 'color', default: '#336699' },
+            visible: { name: 'Visible', type: 'boolean', default: true },
+        };
+        await writeFile(packagePath, JSON.stringify(packageDefinition));
+
+        const theme = await inspectTheme(root);
+        const fixture = previewFixtureFor(theme);
+        const source = previewHarnessSource(theme);
+        const html = previewHarnessHtml(theme);
+
+        assert.deepEqual(
+            fixture.templates.map((template) => template.handle),
+            Object.keys(theme.templates),
+        );
+        assert.deepEqual(fixture.settings, { accent: '#336699', visible: true });
+        const home = fixture.templates.find((template) => template.handle === 'home');
+        assert.equal((home?.props.page as { title?: string }).title, 'Home');
+        assert.equal(
+            (fixture.templates.find((template) => template.handle === 'entry')?.props.entry as {
+                body?: string;
+            }).body,
+            "This entry was created from the theme's starter content.",
+        );
+        assert.equal(fixture.content['content.entries']?.length, 1);
+        assert.match(source, /history\.pushState/);
+        assert.match(source, /data-bopli-template/);
+        assert.match(source, /fixture\.content\[query\.source\]/);
+        assert.match(source, /setToolbarMinimized/);
+        assert.match(source, /setSettingsOpen/);
+        assert.match(html, /data-bopli-toolbar/);
+        assert.match(html, /data-bopli-settings-panel[^>]+hidden/);
+        assert.match(html, /data-bopli-toolbar-minimize/);
+        assert.doesNotMatch(html, /bopli-preview-controls/);
+    });
+});
+
+test('creates a pinned standalone-ready theme that validates and builds without edits', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'bopli-theme-create-'));
+    const root = join(temporary, 'my-theme');
+
+    try {
+        const created = await createTheme('my-theme', root);
+        const definition = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+            name: string;
+            bopli: { handle: string; name: string };
+            scripts: Record<string, string>;
+            devDependencies: Record<string, string>;
+        };
+        const workflow = await readFile(join(root, '.github/workflows/release.yml'), 'utf8');
+        const gitignore = await readFile(join(root, '.gitignore'), 'utf8');
+
+        assert.equal(created.root, root);
+        assert.equal(definition.name, '@bopli-theme/my-theme');
+        assert.deepEqual(definition.bopli, {
+            ...definition.bopli,
+            handle: 'my-theme',
+            name: 'My Theme',
+        });
+        assert.equal(definition.scripts.dev, 'bopli-theme dev .');
+        assert.equal(definition.scripts['dev:app'], 'bopli-theme dev . --app ../bopli-app');
+        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.7.0');
+        assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.5.0');
+        assert.doesNotMatch(JSON.stringify(definition), /file:/);
+        assert.match(workflow, /@v0\.7\.0/);
+        assert.doesNotMatch(workflow, /__TOOLKIT_VERSION__/);
+        assert.match(gitignore, /node_modules\//);
+        await assert.rejects(createTheme('my-theme', root), /already exists/);
+
+        await mkdir(join(root, 'node_modules/@bopli'), { recursive: true });
+        await symlink(
+            join(TOOLKIT_ROOT, 'packages/sdk'),
+            join(root, 'node_modules/@bopli/theme-sdk'),
+            'dir',
+        );
+        const theme = await inspectTheme(root);
+        const fixture = previewFixtureFor(theme);
+        const output = join(root, 'dist');
+        await generateThemeTypes(theme);
+        await buildTheme(theme, output);
+        const descriptor = JSON.parse(await readFile(join(output, 'theme.json'), 'utf8')) as {
+            runtime: { ssrEntry: string };
+        };
+        const serverSource = await readFile(
+            join(output, descriptor.runtime.ssrEntry.replace(/^\.\//, '')),
+            'utf8',
+        );
+        const serverModule = (await import(
+            `data:text/javascript;charset=utf-8,${encodeURIComponent(serverSource)}`
+        )) as {
+            render(payload: Record<string, unknown>): Promise<string>;
+        };
+        const content = {
+            async query() {
+                return {
+                    data: [],
+                    meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
+                    links: { previous: null, next: null },
+                };
+            },
+        };
+
+        for (const template of fixture.templates) {
+            assert.equal(
+                typeof await serverModule.render({
+                    template: template.handle,
+                    props: template.props,
+                    content,
+                }),
+                'string',
+            );
+        }
+    } finally {
+        await rm(temporary, { recursive: true, force: true });
+    }
+});
+
+test('keeps the bundled scaffold source aligned with the checked starter theme', async () => {
+    const paths = [
+        'tsconfig.json',
+        'resources/bopli/starter.json',
+        'resources/js/templates/pages/Home.vue',
+        'resources/js/templates/pages/Page.vue',
+        'resources/js/templates/entries/Entry.vue',
+    ];
+
+    for (const path of paths) {
+        assert.equal(
+            await readFile(join(TOOLKIT_ROOT, 'packages/cli/scaffold', path), 'utf8'),
+            await readFile(join(TOOLKIT_ROOT, 'starter-theme', path), 'utf8'),
+            `Expected scaffold file [${path}] to match starter-theme.`,
+        );
+    }
+    assert.equal(
+        await readFile(join(TOOLKIT_ROOT, 'packages/cli/scaffold/gitignore'), 'utf8'),
+        await readFile(join(TOOLKIT_ROOT, 'starter-theme/.gitignore'), 'utf8'),
+    );
 });
 
 test('generates settings, field, and pre-bound template prop types from theme metadata', async () => {
@@ -581,6 +729,15 @@ test('allows the local watch release to be staged during an incompatible protoco
             '--stage-if-incompatible',
             '--public-origin=http://localhost:5174',
         ],
+    );
+
+    assert.deepEqual(
+        developmentRegistrationArguments(
+            'http://host.docker.internal:5174/theme.json',
+            'http://localhost:5174',
+            'app-php',
+        ).slice(0, 5),
+        ['compose', 'exec', '-T', 'app-php', 'php'],
     );
 });
 
