@@ -1,0 +1,13 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://boply.org/schemas/theme/v1/template-metadata.schema.json",
+    "title": "TemplateMetadata",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "kind": { "$ref": "definitions.schema.json#/$defs/templateKind" },
+        "default": { "type": "boolean" },
+        "fields": { "$ref": "definitions.schema.json#/$defs/templateFields" }
+    }
+}

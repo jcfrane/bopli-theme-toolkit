@@ -1,0 +1,8 @@
+{
+    "handle": "invalid-theme",
+    "name": "Invalid Theme",
+    "requires": "^0.1",
+    "settings": {
+        "spacing": { "name": "Spacing", "type": "number", "default": 4 }
+    }
+}

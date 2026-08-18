@@ -1,5 +1,10 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import {
+    assertTemplateMetadata,
+    assertThemePackageMetadata,
+    THEME_SETTING_TYPES,
+} from '@bopli/theme-protocol';
 import semver from 'semver';
 import { CONTENT_FIELD_TYPES, RESERVED_ENTRY_FIELDS } from './constants.js';
 import { assertNoSymlinks, validateImports } from './source-validation.js';
@@ -28,6 +33,7 @@ export async function inspectTheme(root: string): Promise<ThemeDefinition> {
     const packageDefinition = await readPackage(root);
     const bopli = packageDefinition.bopli;
     assertObject(bopli, 'package.json bopli metadata must be a JSON object.');
+    assertThemePackageMetadata(bopli);
     if (
         !/^[A-Za-z0-9_-]{1,80}$/.test(String(bopli.handle ?? '')) ||
         typeof bopli.name !== 'string'
@@ -62,9 +68,7 @@ export async function inspectTheme(root: string): Promise<ThemeDefinition> {
                 ? packageDefinition.description
                 : null,
         author,
-        colorModes: Array.isArray(bopli.colorModes)
-            ? bopli.colorModes.filter((mode): mode is string => typeof mode === 'string')
-            : [],
+        colorModes: bopli.colorModes ?? [],
         previewSource,
         settings: themeSettings(bopli.settings),
         templates,
@@ -192,6 +196,7 @@ async function inspectTemplate(
     if ((kind === 'blog_index' || kind === 'blog_post') && fields) {
         throw new Error(`Native Blog template [${directory}/${filename}] may not declare fields.`);
     }
+    assertTemplateMetadata(metadata, `Template [${directory}/${filename}] metadata`);
 
     return {
         name: typeof metadata.name === 'string' ? metadata.name : headline(handle),
@@ -337,7 +342,7 @@ function themeSettings(value: unknown): Record<string, ThemeSetting> {
                 throw new Error(`Theme setting [${handle}] has an invalid handle.`);
             assertObject(definition, `Theme setting [${handle}] must be a JSON object.`);
             const type = definition.type;
-            if (!['text', 'boolean', 'select', 'color', 'image'].includes(String(type))) {
+            if (typeof type !== 'string' || !THEME_SETTING_TYPES.has(type)) {
                 throw new Error(`Theme setting [${handle}] has an unsupported type.`);
             }
             if (

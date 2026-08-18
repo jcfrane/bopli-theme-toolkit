@@ -1,0 +1,133 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://boply.org/schemas/theme/v1/definitions.schema.json",
+    "title": "Bopli theme protocol v1 definitions",
+    "$defs": {
+        "protocolVersion": { "const": 1 },
+        "runtimeApiVersion": { "const": 1 },
+        "starterRecipeVersion": { "const": 1 },
+        "handle": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+        },
+        "contentFieldType": {
+            "enum": [
+                "short_text",
+                "long_text",
+                "rich_text",
+                "number",
+                "boolean",
+                "date_time",
+                "select",
+                "slug",
+                "image",
+                "json",
+                "relationship"
+            ]
+        },
+        "templateKind": {
+            "enum": ["page", "entry", "blog_index", "blog_post"]
+        },
+        "settingType": {
+            "enum": ["text", "boolean", "select", "color", "image"]
+        },
+        "reservedEntryField": {
+            "enum": [
+                "title",
+                "slug",
+                "url",
+                "publishedAt",
+                "terms",
+                "canonicalPath",
+                "seoTitle",
+                "seoDescription",
+                "previous",
+                "next"
+            ]
+        },
+        "templateField": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type"],
+            "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "type": { "$ref": "#/$defs/contentFieldType" },
+                "required": { "type": "boolean" }
+            }
+        },
+        "templateFields": {
+            "type": "object",
+            "propertyNames": { "$ref": "#/$defs/handle" },
+            "additionalProperties": { "$ref": "#/$defs/templateField" }
+        },
+        "themeSetting": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type", "default"],
+            "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "type": { "$ref": "#/$defs/settingType" },
+                "description": { "type": "string", "maxLength": 1000 },
+                "default": {},
+                "options": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": { "type": "string", "maxLength": 100 }
+                }
+            },
+            "allOf": [
+                {
+                    "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
+                    "then": {
+                        "properties": {
+                            "default": { "type": "string", "maxLength": 500 },
+                            "options": false
+                        }
+                    }
+                },
+                {
+                    "if": { "properties": { "type": { "const": "boolean" } }, "required": ["type"] },
+                    "then": {
+                        "properties": {
+                            "default": { "type": "boolean" },
+                            "options": false
+                        }
+                    }
+                },
+                {
+                    "if": { "properties": { "type": { "const": "color" } }, "required": ["type"] },
+                    "then": {
+                        "properties": {
+                            "default": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+                            "options": false
+                        }
+                    }
+                },
+                {
+                    "if": { "properties": { "type": { "const": "image" } }, "required": ["type"] },
+                    "then": {
+                        "properties": {
+                            "default": { "type": "null" },
+                            "options": false
+                        }
+                    }
+                },
+                {
+                    "if": { "properties": { "type": { "const": "select" } }, "required": ["type"] },
+                    "then": {
+                        "required": ["options"],
+                        "properties": { "default": { "type": "string" } }
+                    }
+                }
+            ]
+        },
+        "themeSettings": {
+            "type": "object",
+            "maxProperties": 20,
+            "propertyNames": { "$ref": "#/$defs/handle" },
+            "additionalProperties": { "$ref": "#/$defs/themeSetting" }
+        },
+        "publicationStatus": { "enum": ["draft", "published"] }
+    }
+}

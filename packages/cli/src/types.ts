@@ -1,19 +1,16 @@
+import type {
+    StarterRecipe as ProtocolStarterRecipe,
+    ThemeDescriptor,
+    ThemeSetting as ProtocolThemeSetting,
+} from '@bopli/theme-protocol';
+
 export type JsonObject = Record<string, unknown>;
 
-export type TemplateKind = 'page' | 'entry' | 'blog_index' | 'blog_post';
+export type TemplateKind = ThemeDescriptor['templates'][string]['kind'];
 
-export type ContentFieldType =
-    | 'short_text'
-    | 'long_text'
-    | 'rich_text'
-    | 'number'
-    | 'boolean'
-    | 'date_time'
-    | 'select'
-    | 'slug'
-    | 'image'
-    | 'json'
-    | 'relationship';
+export type ContentFieldType = NonNullable<
+    ThemeDescriptor['templates'][string]['fields']
+>[string]['type'];
 
 export type TemplateField = {
     name: string;
@@ -29,7 +26,7 @@ export type ThemeTemplate = {
     fields?: Record<string, TemplateField>;
 };
 
-export type ThemeSettingType = 'text' | 'boolean' | 'select' | 'color' | 'image';
+export type ThemeSettingType = ProtocolThemeSetting['type'];
 
 export type ThemeSetting = {
     name: string;
@@ -41,13 +38,12 @@ export type ThemeSetting = {
 
 export type ThemeTemplates = Record<string, ThemeTemplate>;
 
-export type StarterRecipe = JsonObject & {
-    version: number;
-    contentModels: JsonObject[];
-    entries: JsonObject[];
-    pages: JsonObject[];
-    blog?: { enabled: boolean };
-};
+export type StarterRecipe = ProtocolStarterRecipe &
+    JsonObject & {
+        contentModels: Array<ProtocolStarterRecipe['contentModels'][number] & JsonObject>;
+        entries: Array<ProtocolStarterRecipe['entries'][number] & JsonObject>;
+        pages: Array<ProtocolStarterRecipe['pages'][number] & JsonObject>;
+    };
 
 export type ThemeDefinition = {
     root: string;
@@ -72,22 +68,6 @@ export type ThemeFile = {
 
 export type PublicThemeTemplate = Omit<ThemeTemplate, 'source'>;
 
-export type ThemeDescriptor = {
-    schemaVersion: number;
-    runtimeApiVersion: number;
-    handle: string;
-    name: string;
-    description: string | null;
-    author: string | null;
-    version: string;
-    bopli: string;
-    preview: string | null;
-    colorModes: string[];
-    settings: Record<string, ThemeSetting>;
-    templates: Record<string, PublicThemeTemplate>;
-    starter?: StarterRecipe;
-    runtime: { entry: string; ssrEntry: string; styles: string[] };
-    files: ThemeFile[];
-};
+export type { ThemeDescriptor } from '@bopli/theme-protocol';
 
 export type CliOptions = Record<string, string | boolean>;

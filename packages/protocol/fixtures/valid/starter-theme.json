@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "runtimeApiVersion": 1,
+  "handle": "starter-theme",
+  "name": "Starter Theme",
+  "description": "A minimal Bopli theme starter.",
+  "author": "Boply",
+  "version": "0.1.0",
+  "bopli": "^0.1",
+  "preview": null,
+  "colorModes": [
+    "light",
+    "dark"
+  ],
+  "settings": {},
+  "templates": {
+    "home": {
+      "name": "Home",
+      "kind": "page",
+      "default": false
+    },
+    "page": {
+      "name": "Standard page",
+      "kind": "page",
+      "default": true
+    },
+    "entry": {
+      "name": "Standard entry",
+      "kind": "entry",
+      "default": true,
+      "fields": {
+        "body": {
+          "name": "Body",
+          "type": "long_text",
+          "required": true
+        }
+      }
+    }
+  },
+  "starter": {
+    "version": 1,
+    "contentModels": [
+      {
+        "handle": "article",
+        "name": "Articles",
+        "singularName": "Article",
+        "description": "Structured articles published by the starter theme.",
+        "fields": [
+          {
+            "key": "body",
+            "label": "Body",
+            "type": "long_text",
+            "required": true
+          }
+        ],
+        "publicRoute": {
+          "template": "entry",
+          "path": "/articles/{slug}",
+          "fieldMap": {
+            "body": "body"
+          },
+          "seoDescriptionField": "body"
+        }
+      }
+    ],
+    "entries": [
+      {
+        "model": "article",
+        "title": "Welcome",
+        "slug": "welcome",
+        "status": "draft",
+        "data": {
+          "body": "This entry was created from the theme's starter content."
+        }
+      }
+    ],
+    "pages": [
+      {
+        "title": "Home",
+        "path": "/",
+        "template": "home",
+        "status": "published",
+        "data": {
+          "body": "Start publishing with Bopli."
+        }
+      }
+    ],
+    "blog": {
+      "enabled": false
+    }
+  },
+  "runtime": {
+    "entry": "./assets/theme-BQsXp25u.js",
+    "ssrEntry": "./assets/theme-ssr-C1BE1-cX.js",
+    "styles": [
+      "./assets/style-BB8GNsjp.css"
+    ]
+  },
+  "files": [
+    {
+      "path": "assets/style-BB8GNsjp.css",
+      "size": 162,
+      "sha256": "6d975a47b726c228806194f812d207c78f9a63df0b6eafabdcb11af301979bc5"
+    },
+    {
+      "path": "assets/theme-BQsXp25u.js",
+      "size": 62077,
+      "sha256": "230df5a1ff4e3b602a833fcf46738d8b71de4b5bca8645ef5009797171374e2d"
+    },
+    {
+      "path": "assets/theme-ssr-C1BE1-cX.js",
+      "size": 136164,
+      "sha256": "ba781c17e7eb201c93ac0d79499526631419e59f5862375ba1ec5a24279df179"
+    }
+  ]
+}

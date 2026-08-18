@@ -1,0 +1,34 @@
+{
+    "schemaVersion": 1,
+    "runtimeApiVersion": 1,
+    "handle": "minimal-theme",
+    "name": "Minimal Theme",
+    "description": null,
+    "author": "Boply",
+    "version": "0.1.0",
+    "bopli": "^0.1",
+    "preview": null,
+    "colorModes": ["light"],
+    "settings": {},
+    "templates": {
+        "page": { "name": "Page", "kind": "page", "default": true },
+        "entry": {
+            "name": "Entry",
+            "kind": "entry",
+            "default": true,
+            "fields": { "body": { "name": "Body", "type": "rich_text", "required": true } }
+        }
+    },
+    "runtime": {
+        "entry": "./assets/theme.js",
+        "ssrEntry": "./assets/theme-ssr.js",
+        "styles": []
+    },
+    "files": [
+        {
+            "path": "assets/theme.js",
+            "size": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+    ]
+}

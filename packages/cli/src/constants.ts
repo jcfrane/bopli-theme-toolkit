@@ -1,36 +1,12 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-export const RUNTIME_API_VERSION = 1;
-export const PROTOCOL_VERSION = 1;
-export const STARTER_RECIPE_VERSION = 1;
-
-export const CONTENT_FIELD_TYPES = new Set([
-    'short_text',
-    'long_text',
-    'rich_text',
-    'number',
-    'boolean',
-    'date_time',
-    'select',
-    'slug',
-    'image',
-    'json',
-    'relationship',
-]);
-
-export const RESERVED_ENTRY_FIELDS = new Set([
-    'title',
-    'slug',
-    'url',
-    'publishedAt',
-    'terms',
-    'canonicalPath',
-    'seoTitle',
-    'seoDescription',
-    'previous',
-    'next',
-]);
+export {
+    CONTENT_FIELD_TYPES,
+    PROTOCOL_VERSION,
+    RESERVED_ENTRY_FIELDS,
+    RUNTIME_API_VERSION,
+    STARTER_RECIPE_VERSION,
+} from '@bopli/theme-protocol';
 
 export const VIRTUAL_ENTRY = 'virtual:bopli-theme-entry';
 export const RESOLVED_VIRTUAL_ENTRY = '\0bopli:theme-entry';

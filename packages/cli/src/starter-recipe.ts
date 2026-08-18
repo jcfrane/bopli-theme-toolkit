@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { assertStarterRecipe as assertProtocolStarterRecipe } from '@bopli/theme-protocol';
 import { STARTER_RECIPE_VERSION } from './constants.js';
 import {
     validateStarterModel,
@@ -45,6 +46,7 @@ function validateStarterRecipe(
     templates: ThemeTemplates,
 ): asserts recipe is StarterRecipe {
     assertObject(recipe, 'The starter-content recipe must be a JSON object.');
+    assertProtocolStarterRecipe(recipe);
     assertOnlyKeys(
         recipe,
         ['version', 'contentModels', 'entries', 'pages', 'blog'],
@@ -64,9 +66,6 @@ function validateStarterRecipe(
     pages.forEach((page, index) => validateStarterPage(page, index, templates));
     validateBlog(recipe.blog);
 
-    recipe.contentModels = contentModels as JsonObject[];
-    recipe.entries = entries as JsonObject[];
-    recipe.pages = pages as JsonObject[];
 }
 
 function validateBlog(value: unknown): void {

@@ -97,7 +97,7 @@ function starterModels(theme: ThemeDefinition): Map<string, StarterModel> {
             const handle = typeof value.handle === 'string' ? value.handle : null;
             if (!handle) return [];
 
-            return [[handle, value as StarterModel]];
+            return [[handle, value as unknown as StarterModel]];
         }),
     );
 }

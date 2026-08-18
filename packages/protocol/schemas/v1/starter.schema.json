@@ -1,0 +1,108 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://boply.org/schemas/theme/v1/starter.schema.json",
+    "title": "StarterRecipe",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["version", "contentModels", "entries", "pages"],
+    "properties": {
+        "version": { "$ref": "definitions.schema.json#/$defs/starterRecipeVersion" },
+        "contentModels": {
+            "type": "array",
+            "maxItems": 50,
+            "items": { "$ref": "#/$defs/contentModel" }
+        },
+        "entries": {
+            "type": "array",
+            "maxItems": 200,
+            "items": { "$ref": "#/$defs/entry" }
+        },
+        "pages": {
+            "type": "array",
+            "maxItems": 50,
+            "items": { "$ref": "#/$defs/page" }
+        },
+        "blog": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["enabled"],
+            "properties": { "enabled": { "type": "boolean" } }
+        }
+    },
+    "$defs": {
+        "contentField": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "label", "type"],
+            "properties": {
+                "key": { "$ref": "definitions.schema.json#/$defs/handle" },
+                "label": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "type": { "$ref": "definitions.schema.json#/$defs/contentFieldType" },
+                "required": { "type": "boolean" },
+                "filterable": { "type": "boolean" },
+                "sortable": { "type": "boolean" },
+                "helpText": { "type": "string", "maxLength": 1000 },
+                "configuration": { "type": "object" }
+            }
+        },
+        "publicRoute": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["template", "path", "fieldMap"],
+            "properties": {
+                "template": { "$ref": "definitions.schema.json#/$defs/handle" },
+                "path": { "type": "string", "maxLength": 255, "pattern": "^/(?:[A-Za-z0-9._~-]+/)*\\{slug\\}$" },
+                "fieldMap": {
+                    "type": "object",
+                    "propertyNames": { "$ref": "definitions.schema.json#/$defs/handle" },
+                    "additionalProperties": { "$ref": "definitions.schema.json#/$defs/handle" }
+                },
+                "seoDescriptionField": {
+                    "oneOf": [
+                        { "$ref": "definitions.schema.json#/$defs/handle" },
+                        { "type": "null" }
+                    ]
+                }
+            }
+        },
+        "contentModel": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["handle", "name", "singularName", "fields"],
+            "properties": {
+                "handle": { "$ref": "definitions.schema.json#/$defs/handle" },
+                "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "singularName": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "description": { "type": ["string", "null"], "maxLength": 2000 },
+                "fields": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/$defs/contentField" } },
+                "publicRoute": { "oneOf": [{ "$ref": "#/$defs/publicRoute" }, { "type": "null" }] }
+            }
+        },
+        "entry": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["model", "title", "slug", "status", "data"],
+            "properties": {
+                "model": { "$ref": "definitions.schema.json#/$defs/handle" },
+                "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "slug": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,255}$" },
+                "status": { "$ref": "definitions.schema.json#/$defs/publicationStatus" },
+                "data": { "type": "object" }
+            }
+        },
+        "page": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "path", "template", "status", "data"],
+            "properties": {
+                "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "path": { "type": "string", "maxLength": 255, "pattern": "^/(?:[A-Za-z0-9._~-]+/?)*$" },
+                "template": { "$ref": "definitions.schema.json#/$defs/handle" },
+                "status": { "$ref": "definitions.schema.json#/$defs/publicationStatus" },
+                "data": { "type": "object" },
+                "seoTitle": { "type": ["string", "null"], "maxLength": 255 },
+                "seoDescription": { "type": ["string", "null"], "maxLength": 500 }
+            }
+        }
+    }
+}

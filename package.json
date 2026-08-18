@@ -6,14 +6,16 @@
         "packages/*"
     ],
     "scripts": {
-        "build": "npm run build:sdk && npm run build:cli",
+        "build": "npm run build:protocol && npm run build:sdk && npm run build:cli",
+        "build:protocol": "tsc -p packages/protocol/tsconfig.json",
         "build:sdk": "tsc -p packages/sdk/tsconfig.json",
         "build:cli": "tsc -p packages/cli/tsconfig.json",
         "types:starter": "node packages/cli/bin/bopli-theme.js types starter-theme && vue-tsc --noEmit -p starter-theme/tsconfig.json",
         "types:test": "tsc -p tsconfig.test.json",
         "test": "npm run build && npm run types:test && node --import tsx --test packages/*/test/*.test.ts",
-        "check": "npm run build && npm run types:starter && node packages/cli/bin/bopli-theme.js validate starter-theme",
-        "build:starter": "npm run build && npm run types:starter && node packages/cli/bin/bopli-theme.js build starter-theme"
+        "protocol:check": "node --import tsx packages/protocol/scripts/check.ts",
+        "check": "npm run protocol:check && npm run build && npm run types:starter && node packages/cli/bin/bopli-theme.js validate starter-theme",
+        "build:starter": "npm run build && npm run types:starter && node packages/cli/bin/bopli-theme.js build starter-theme && node --import tsx packages/protocol/scripts/sync-starter-fixture.ts"
     },
     "devDependencies": {
         "@types/node": "^22.13.5",
@@ -21,6 +23,7 @@
         "@types/yazl": "^3.3.1",
         "@vitejs/plugin-vue": "^6.0.0",
         "@vue/compiler-sfc": "^3.5.13",
+        "json-schema-to-typescript": "^15.0.4",
         "semver": "^7.7.2",
         "tsx": "^4.20.6",
         "typescript": "^5.9.3",

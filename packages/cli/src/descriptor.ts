@@ -1,4 +1,5 @@
 import { PROTOCOL_VERSION, RUNTIME_API_VERSION } from './constants.js';
+import { assertThemeDescriptor } from '@bopli/theme-protocol';
 import type {
     PublicThemeTemplate,
     ThemeDefinition,
@@ -21,7 +22,7 @@ export function descriptorFor(
         }),
     );
 
-    return {
+    const descriptor = {
         schemaVersion: PROTOCOL_VERSION,
         runtimeApiVersion: RUNTIME_API_VERSION,
         handle: theme.handle,
@@ -38,4 +39,8 @@ export function descriptorFor(
         runtime: { entry, ssrEntry, styles },
         files,
     };
+
+    assertThemeDescriptor(descriptor);
+
+    return descriptor;
 }
