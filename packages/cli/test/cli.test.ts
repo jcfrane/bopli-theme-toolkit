@@ -100,10 +100,10 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         });
         assert.equal(definition.scripts.dev, 'bopli-theme dev .');
         assert.equal(definition.scripts['dev:app'], 'bopli-theme dev . --app ../bopli-app');
-        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.7.0');
+        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.8.0');
         assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.5.0');
         assert.doesNotMatch(JSON.stringify(definition), /file:/);
-        assert.match(workflow, /@v0\.7\.0/);
+        assert.match(workflow, /@v0\.8\.0/);
         assert.doesNotMatch(workflow, /__TOOLKIT_VERSION__/);
         assert.match(gitignore, /node_modules\//);
         await assert.rejects(createTheme('my-theme', root), /already exists/);

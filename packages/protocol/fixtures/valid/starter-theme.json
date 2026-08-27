@@ -90,8 +90,8 @@
     }
   },
   "runtime": {
-    "entry": "./assets/theme-BQsXp25u.js",
-    "ssrEntry": "./assets/theme-ssr-C1BE1-cX.js",
+    "entry": "./assets/theme-iurpS65l.js",
+    "ssrEntry": "./assets/theme-ssr-BIdW2cDk.js",
     "styles": [
       "./assets/style-BB8GNsjp.css"
     ]
@@ -103,14 +103,14 @@
       "sha256": "6d975a47b726c228806194f812d207c78f9a63df0b6eafabdcb11af301979bc5"
     },
     {
-      "path": "assets/theme-BQsXp25u.js",
-      "size": 62077,
-      "sha256": "230df5a1ff4e3b602a833fcf46738d8b71de4b5bca8645ef5009797171374e2d"
+      "path": "assets/theme-iurpS65l.js",
+      "size": 62052,
+      "sha256": "3473609a5e5c51fc8e9af42bae3baf79e1d2deb3fc09fce67804fbc39db98e07"
     },
     {
-      "path": "assets/theme-ssr-C1BE1-cX.js",
-      "size": 136164,
-      "sha256": "ba781c17e7eb201c93ac0d79499526631419e59f5862375ba1ec5a24279df179"
+      "path": "assets/theme-ssr-BIdW2cDk.js",
+      "size": 74402,
+      "sha256": "105dabe889832ef1860ad369fcec84fd6d9028df713009dff6b140a69f861ac4"
     }
   ]
 }
