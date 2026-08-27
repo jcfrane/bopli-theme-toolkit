@@ -5,6 +5,7 @@ import {
     assertThemePackageMetadata,
     THEME_SETTING_TYPES,
 } from '@bopli/theme-protocol';
+import { parse as parseSfc } from '@vue/compiler-sfc';
 import semver from 'semver';
 import { CONTENT_FIELD_TYPES, RESERVED_ENTRY_FIELDS } from './constants.js';
 import { assertNoSymlinks, validateImports } from './source-validation.js';
@@ -20,6 +21,7 @@ import type {
     ThemeTemplates,
 } from './types.js';
 import { assertObject, headline, isFileSystemError, snakeCase } from './utilities.js';
+import { ThemeValidationError } from './validation-error.js';
 
 const TEMPLATE_DIRECTORIES: Array<[string, TemplateKind]> = [
     ['pages', 'page'],
@@ -29,6 +31,21 @@ const TEMPLATE_DIRECTORIES: Array<[string, TemplateKind]> = [
 const LEGACY_TEMPLATE_DIRECTORIES = ['blogs', 'posts'];
 
 export async function inspectTheme(root: string): Promise<ThemeDefinition> {
+    try {
+        return await inspectThemeDefinition(root);
+    } catch (error) {
+        if (error instanceof ThemeValidationError) throw error;
+        throw new ThemeValidationError({
+            code: 'BOPLI_E000',
+            file: '.',
+            message: error instanceof Error ? error.message : String(error),
+            remediation: 'Review the theme authoring rules and correct the reported value.',
+            cause: error,
+        });
+    }
+}
+
+async function inspectThemeDefinition(root: string): Promise<ThemeDefinition> {
     await assertNoSymlinks(root);
     const packageDefinition = await readPackage(root);
     const bopli = packageDefinition.bopli;
@@ -116,10 +133,15 @@ async function discoverTemplates(root: string): Promise<ThemeTemplates> {
         }
 
         for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+            if (isIgnorableTemplateEntry(entry.name)) continue;
             if (!entry.isFile() || extname(entry.name) !== '.vue') {
-                throw new Error(
-                    `Template directory [${directory}] may contain only top-level Vue files.`,
-                );
+                throw new ThemeValidationError({
+                    code: 'BOPLI_E004',
+                    file: `resources/js/templates/${directory}/${entry.name}`,
+                    message: `Template directory [${directory}] contains unsupported entry [${entry.name}].`,
+                    remediation:
+                        'Keep only top-level .vue templates in this directory; move helpers into resources/js/components.',
+                });
             }
 
             const handle = snakeCase(entry.name.slice(0, -4));
@@ -166,8 +188,10 @@ async function inspectTemplate(
     inferredKind: TemplateKind,
     handle: string,
 ): Promise<ThemeTemplate> {
+    const sourceFile = `resources/js/templates/${directory}/${filename}`;
     const contents = await readFile(join(templateRoot, filename), 'utf8');
-    const metadata = parseMetadata(contents, `${directory}/${filename}`);
+    const parsedMetadata = parseMetadata(contents, sourceFile);
+    const metadata = parsedMetadata.value;
     const kind = templateKind(metadata.kind, inferredKind, directory, filename);
     const fields =
         metadata.fields === undefined
@@ -178,16 +202,27 @@ async function inspectTemplate(
     }
 
     if (kind === 'entry' && (!fields || Object.keys(fields).length === 0)) {
-        throw new Error(`Entry template [${directory}/${filename}] must declare fields.`);
+        throw new ThemeValidationError({
+            code: 'BOPLI_E012',
+            file: sourceFile,
+            line: parsedMetadata.line,
+            message: 'Entry templates must declare at least one field.',
+            remediation: 'Add a non-empty fields object to the template <bopli> block.',
+        });
     }
     if (kind === 'entry') {
         const reservedField = Object.keys(fields ?? {}).find((field) =>
             RESERVED_ENTRY_FIELDS.has(field),
         );
         if (reservedField) {
-            throw new Error(
-                `Entry template [${directory}/${filename}] redeclares reserved field [${reservedField}].`,
-            );
+            throw new ThemeValidationError({
+                code: 'BOPLI_E013',
+                file: sourceFile,
+                line: parsedMetadata.line,
+                message: `Entry template redeclares reserved field [${reservedField}].`,
+                remediation:
+                    'Rename the field to a theme-owned projection key that does not collide with Bopli metadata.',
+            });
         }
     }
     if (kind === 'page' && fields) {
@@ -229,17 +264,39 @@ function templateKind(
     return value as TemplateKind;
 }
 
-function parseMetadata(contents: string, file: string): JsonObject {
-    const match = contents.match(/<bopli\b[^>]*>([\s\S]*?)<\/bopli>/);
-    if (!match?.[1]) return {};
+function parseMetadata(contents: string, file: string): { value: JsonObject; line: number } {
+    const parsed = parseSfc(contents, { filename: file });
+    const parseError = parsed.errors[0];
+    if (parseError) {
+        throw new ThemeValidationError({
+            code: 'BOPLI_E010',
+            file,
+            message: `Vue could not parse this single-file component: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            remediation: 'Fix the reported Vue syntax before validating the template again.',
+            cause: parseError,
+        });
+    }
+    const block = parsed.descriptor.customBlocks.find((candidate) => candidate.type === 'bopli');
+    if (!block) return { value: {}, line: 1 };
 
     try {
-        const metadata = JSON.parse(match[1]) as unknown;
+        const metadata = JSON.parse(block.content) as unknown;
         assertObject(metadata, 'Template metadata must be a JSON object.');
-        return metadata;
-    } catch {
-        throw new Error(`Template [${file}] contains invalid JSON in its <bopli> block.`);
+        return { value: metadata, line: block.loc.start.line };
+    } catch (cause) {
+        throw new ThemeValidationError({
+            code: 'BOPLI_E010',
+            file,
+            line: block.loc.start.line,
+            message: 'The <bopli> block contains invalid JSON.',
+            remediation: 'Use one JSON object with quoted keys and no trailing commas.',
+            cause,
+        });
     }
+}
+
+function isIgnorableTemplateEntry(name: string): boolean {
+    return name.startsWith('.') || name === 'Thumbs.db' || name.endsWith('.swp');
 }
 
 function templateFields(

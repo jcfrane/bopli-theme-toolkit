@@ -4,7 +4,13 @@ import { mkdir, realpath, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createServer } from 'vite';
 import { developmentServerArtifact } from './build-theme.js';
-import { PUBLIC_DEV_ENTRY, PUBLIC_DEV_SSR_ENTRY, SDK_PATH, VUE_PATH } from './constants.js';
+import {
+    PRIVILEGED_GLOBAL_DEFINES,
+    PUBLIC_DEV_ENTRY,
+    PUBLIC_DEV_SSR_ENTRY,
+    SDK_PATH,
+    VUE_PATH,
+} from './constants.js';
 import { descriptorFor } from './descriptor.js';
 import { previewHarnessPlugin } from './preview-harness.js';
 import { runtimePlugin } from './runtime.js';
@@ -30,6 +36,7 @@ export async function serveTheme(theme: ThemeDefinition, options: CliOptions): P
     const server = await createServer({
         root: theme.root,
         configFile: false,
+        define: PRIVILEGED_GLOBAL_DEFINES,
         plugins: [
             importBoundaryPlugin(theme),
             runtimePlugin(theme, descriptor),

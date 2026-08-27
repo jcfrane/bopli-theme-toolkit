@@ -11,6 +11,7 @@ import {
     generateThemeTypes,
     inspectTheme,
     packageTheme,
+    ThemeValidationError,
 } from '../dist/cli.js';
 import { buildTheme, developmentServerArtifact } from '../dist/build-theme.js';
 import { previewFixtureFor } from '../dist/preview-fixtures.js';
@@ -55,9 +56,11 @@ test('derives standalone props and query fixtures for every declared template', 
         const home = fixture.templates.find((template) => template.handle === 'home');
         assert.equal((home?.props.page as { title?: string }).title, 'Home');
         assert.equal(
-            (fixture.templates.find((template) => template.handle === 'entry')?.props.entry as {
-                body?: string;
-            }).body,
+            (
+                fixture.templates.find((template) => template.handle === 'entry')?.props.entry as {
+                    body?: string;
+                }
+            ).body,
             "This entry was created from the theme's starter content.",
         );
         assert.equal(fixture.content['content.entries']?.length, 1);
@@ -140,11 +143,11 @@ test('creates a pinned standalone-ready theme that validates and builds without 
 
         for (const template of fixture.templates) {
             assert.equal(
-                typeof await serverModule.render({
+                typeof (await serverModule.render({
                     template: template.handle,
                     props: template.props,
                     content,
-                }),
+                })),
                 'string',
             );
         }
@@ -440,7 +443,10 @@ test('requires Page and Entry templates with exactly one default each', async ()
     });
 
     await withStarterTheme(async (root) => {
-        await rm(join(root, 'resources/js/templates/entries'), { recursive: true, force: true });
+        await rm(join(root, 'resources/js/templates/entries'), {
+            recursive: true,
+            force: true,
+        });
 
         await assert.rejects(inspectTheme(root), /at least one Entry template/);
     });
@@ -524,7 +530,12 @@ test('rejects obsolete Page slots and invalid theme setting defaults', async () 
             bopli: Record<string, unknown>;
         };
         packageDefinition.bopli.settings = {
-            layout: { name: 'Layout', type: 'select', default: 'grid', options: ['list'] },
+            layout: {
+                name: 'Layout',
+                type: 'select',
+                default: 'grid',
+                options: ['list'],
+            },
         };
         await writeFile(path, JSON.stringify(packageDefinition));
 
@@ -554,7 +565,27 @@ test('rejects Entry contracts that shadow Bopli metadata', async () => {
             fields: { url: { name: 'External URL', type: 'short_text' } },
         });
 
-        await assert.rejects(inspectTheme(root), /redeclares reserved field \[url\]/);
+        await assert.rejects(inspectTheme(root), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E013');
+            assert.equal(error.file, 'resources/js/templates/entries/Entry.vue');
+            assert.match(error.message, /resources\/js\/templates\/entries\/Entry\.vue/);
+            return true;
+        });
+    });
+});
+
+test('reports a coded location when an Entry template omits fields', async () => {
+    await withStarterTheme(async (root) => {
+        await writeTemplate(root, 'entries', 'Entry.vue', { name: 'Entry' });
+
+        await assert.rejects(inspectTheme(root), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E012');
+            assert.equal(error.file, 'resources/js/templates/entries/Entry.vue');
+            assert.equal(error.line, 1);
+            return true;
+        });
     });
 });
 
@@ -576,42 +607,91 @@ test('rejects imports that escape the theme repository', async () => {
             "\n<script setup>\nimport secret from '../../../../../outside.js';\n</script>\n",
         );
 
-        await assert.rejects(inspectTheme(root), /escapes the theme root/);
+        await assert.rejects(inspectTheme(root), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E021');
+            assert.equal(error.file, 'resources/js/templates/pages/Home.vue');
+            assert.match(error.message, /escapes the theme root/);
+            return true;
+        });
     });
 });
 
-test('allows the bounded Shiki imports used by syntax-highlighting themes', async () => {
+test('builds a declared pure ESM package from the theme node_modules', async () => {
     await withStarterTheme(async (root) => {
+        await installTestPackage(
+            root,
+            'tiny-esm',
+            'export const answer = typeof process !== "undefined" && process.env.DEBUG ? 1 : 42;',
+        );
         await appendToHome(
             root,
-            [
-                '',
-                '<script setup>',
-                "import { createHighlighterCore } from 'shiki/core';",
-                "import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';",
-                "import githubDark from '@shikijs/themes/github-dark';",
-                "const language = () => import('@shikijs/langs/typescript');",
-                'void createHighlighterCore;',
-                'void createJavaScriptRegexEngine;',
-                'void githubDark;',
-                'void language;',
-                '</script>',
-                '',
-            ].join('\n'),
+            "\n<script setup>\nimport { answer } from 'tiny-esm';\nvoid answer;\n</script>\n",
         );
 
-        await inspectTheme(root);
+        const theme = await inspectTheme(root);
+        await buildTheme(theme, join(root, 'dist'));
     });
 });
 
-test('continues to reject Shiki imports outside the bounded allowlist', async () => {
+test('rejects unguarded privileged globals in dependency source', async () => {
+    await withStarterTheme(async (root) => {
+        await installTestPackage(
+            root,
+            'environment-reader',
+            'export const secret = process.env.SECRET;',
+        );
+        await appendToHome(
+            root,
+            "\n<script setup>\nimport { secret } from 'environment-reader';\nvoid secret;\n</script>\n",
+        );
+
+        const theme = await inspectTheme(root);
+        await assert.rejects(buildTheme(theme, join(root, 'dist')), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E023');
+            assert.match(error.file, /node_modules\/environment-reader\/index\.js/);
+            return true;
+        });
+    });
+});
+
+test('rejects a package import that is not a direct installed dependency', async () => {
     await withStarterTheme(async (root) => {
         await appendToHome(
             root,
-            "\n<script setup>\nconst language = () => import('@shikijs/langs/wasm');\nvoid language;\n</script>\n",
+            "\n<script setup>\nimport value from 'uninstalled-package';\nvoid value;\n</script>\n",
         );
 
-        await assert.rejects(inspectTheme(root), /Import \[@shikijs\/langs\/wasm\] is not allowed/);
+        await assert.rejects(inspectTheme(root), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E020');
+            assert.equal(error.file, 'resources/js/templates/pages/Home.vue');
+            assert.match(error.message, /uninstalled-package/);
+            return true;
+        });
+    });
+});
+
+test('rejects a dependency that leaves a Node built-in in the bundle', async () => {
+    await withStarterTheme(async (root) => {
+        await installTestPackage(
+            root,
+            'node-reader',
+            "import { readFile } from 'node:fs';\nexport { readFile };",
+        );
+        await appendToHome(
+            root,
+            "\n<script setup>\nimport { readFile } from 'node-reader';\nvoid readFile;\n</script>\n",
+        );
+
+        const theme = await inspectTheme(root);
+        await assert.rejects(buildTheme(theme, join(root, 'dist')), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E024');
+            assert.match(error.message, /node:fs/);
+            return true;
+        });
     });
 });
 
@@ -633,7 +713,65 @@ test('rejects privileged server globals in theme source', async () => {
             '\n<script setup>\nconst secret = process.env.SECRET;\nvoid secret;\n</script>\n',
         );
 
-        await assert.rejects(inspectTheme(root), /Server globals and privileged module schemes/);
+        await assert.rejects(inspectTheme(root), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E023');
+            assert.equal(error.file, 'resources/js/templates/pages/Home.vue');
+            assert(error.line);
+            return true;
+        });
+    });
+});
+
+test('ignores privileged words in Vue templates, styles, strings, and comments', async () => {
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/templates/pages/Home.vue');
+        const contents = await readFile(path, 'utf8');
+        await writeFile(
+            path,
+            contents
+                .replace('<main>', '<main><p>Our process is simple and uses a global audience.</p>')
+                .replace(
+                    'defineProps<HomeProps>();',
+                    "defineProps<HomeProps>();\nconst copy = 'process global Buffer require';\n// process.env is prose\nvoid copy;",
+                )
+                .replace('main {', '/* process and :global(.example) are CSS text */\nmain {'),
+        );
+
+        await inspectTheme(root);
+    });
+});
+
+test('reads the real bopli block and ignores one inside an HTML comment', async () => {
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/templates/pages/Home.vue');
+        const contents = await readFile(path, 'utf8');
+        await writeFile(
+            path,
+            `<!-- <bopli lang="json">{"name":"Commented"}</bopli> -->\n${contents}`,
+        );
+
+        const theme = await inspectTheme(root);
+        assert.equal(theme.templates.home?.name, 'Home');
+    });
+});
+
+test('ignores template junk files but names unsupported directories', async () => {
+    await withStarterTheme(async (root) => {
+        const templateRoot = join(root, 'resources/js/templates/pages');
+        await writeFile(join(templateRoot, '.DS_Store'), 'metadata');
+        await writeFile(join(templateRoot, 'Home.vue.swp'), 'swap');
+
+        await inspectTheme(root);
+
+        await mkdir(join(templateRoot, 'partials'));
+        await assert.rejects(inspectTheme(root), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E004');
+            assert.match(error.message, /partials/);
+            assert.equal(error.file, 'resources/js/templates/pages/partials');
+            return true;
+        });
     });
 });
 
@@ -756,7 +894,36 @@ async function withStarterTheme(callback: (root: string) => Promise<void>): Prom
 async function appendToHome(root: string, addition: string): Promise<void> {
     const path = join(root, 'resources/js/templates/pages/Home.vue');
     const contents = await readFile(path, 'utf8');
-    await writeFile(path, contents + addition);
+    const script = addition.match(/<script setup>\s*([\s\S]*?)\s*<\/script>/)?.[1] ?? addition;
+    await writeFile(path, contents.replace('</script>', `${script}\n</script>`));
+}
+
+async function installTestPackage(root: string, name: string, source: string): Promise<void> {
+    await mkdir(join(root, 'node_modules/@bopli'), { recursive: true });
+    await symlink(
+        join(TOOLKIT_ROOT, 'packages/sdk'),
+        join(root, 'node_modules/@bopli/theme-sdk'),
+        'dir',
+    );
+    const packagePath = join(root, 'node_modules', ...name.split('/'));
+    await mkdir(packagePath, { recursive: true });
+    await writeFile(
+        join(packagePath, 'package.json'),
+        JSON.stringify({
+            name,
+            version: '1.0.0',
+            type: 'module',
+            exports: './index.js',
+        }),
+    );
+    await writeFile(join(packagePath, 'index.js'), source);
+
+    const themePackagePath = join(root, 'package.json');
+    const themePackage = JSON.parse(await readFile(themePackagePath, 'utf8')) as {
+        dependencies?: Record<string, string>;
+    };
+    themePackage.dependencies = { ...themePackage.dependencies, [name]: '1.0.0' };
+    await writeFile(themePackagePath, JSON.stringify(themePackage));
 }
 
 async function writeTemplate(

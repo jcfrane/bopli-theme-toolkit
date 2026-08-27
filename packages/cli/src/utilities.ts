@@ -1,27 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { CliOptions, JsonObject } from './types.js';
-
-export function parseOptions(args: string[]): CliOptions {
-    const options: CliOptions = {};
-
-    for (let index = 0; index < args.length; index++) {
-        const argument = args[index];
-        if (!argument?.startsWith('--')) continue;
-
-        const [rawName, inlineValue] = argument.slice(2).split('=', 2);
-        if (!rawName) continue;
-
-        if (inlineValue !== undefined) {
-            options[rawName] = inlineValue;
-        } else if (args[index + 1] && !args[index + 1]?.startsWith('--')) {
-            options[rawName] = args[++index] as string;
-        } else {
-            options[rawName] = true;
-        }
-    }
-
-    return options;
-}
+import type { JsonObject } from './types.js';
 
 export function snakeCase(value: string): string {
     return value

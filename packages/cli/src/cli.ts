@@ -1,5 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import { buildTheme } from './build-theme.js';
 import { createTheme } from './create-theme.js';
 import { inspectTheme } from './inspect-theme.js';
@@ -10,7 +11,7 @@ import {
     serveTheme,
 } from './serve-theme.js';
 import { generateThemeTypes } from './type-generation.js';
-import { parseOptions } from './utilities.js';
+import type { CliOptions } from './types.js';
 
 export {
     inspectTheme,
@@ -20,16 +21,34 @@ export {
     generateThemeTypes,
     createTheme,
 };
+export { ThemeValidationError } from './validation-error.js';
 
 export async function run(argv: string[]): Promise<void> {
-    const command = argv[0];
+    const { positionals, values } = parseArgs({
+        args: argv,
+        allowPositionals: true,
+        strict: true,
+        options: {
+            dir: { type: 'string' },
+            'out-dir': { type: 'string' },
+            port: { type: 'string' },
+            standalone: { type: 'boolean' },
+            app: { type: 'string' },
+            'docker-service': { type: 'string' },
+        },
+    });
+    const command = positionals[0];
+    const options = Object.fromEntries(
+        Object.entries(values).filter(
+            (entry): entry is [string, string | boolean] => entry[1] !== undefined,
+        ),
+    ) as CliOptions;
 
     if (command === 'create') {
-        const handle = argv[1];
-        if (!handle || handle.startsWith('--')) {
+        const handle = positionals[1];
+        if (!handle || positionals.length !== 2) {
             throw new Error('Usage: bopli-theme create <handle> [--dir theme-directory]');
         }
-        const options = parseOptions(argv.slice(2));
         const directory = options.dir;
         if (directory !== undefined && typeof directory !== 'string') {
             throw new Error('The --dir option must specify a directory.');
@@ -40,10 +59,6 @@ export async function run(argv: string[]): Promise<void> {
         );
         return;
     }
-
-    const sourceArgument = argv[1] && !argv[1].startsWith('--') ? argv[1] : '.';
-    const sourceRoot = await realpath(resolve(sourceArgument));
-    const options = parseOptions(argv.slice(sourceArgument === '.' ? 1 : 2));
 
     if (
         command !== 'validate' &&
@@ -56,6 +71,12 @@ export async function run(argv: string[]): Promise<void> {
             'Usage: bopli-theme <create|validate|types|build|package|dev> [theme-path] [--out-dir dist] [--port 5174] [--standalone] [--app ../bopli-app] [--docker-service php]',
         );
     }
+    if (positionals.length > 2) {
+        throw new Error('Only one theme path may be provided.');
+    }
+
+    const sourceArgument = positionals[1] ?? '.';
+    const sourceRoot = await realpath(resolve(sourceArgument));
 
     const theme = await inspectTheme(sourceRoot);
 

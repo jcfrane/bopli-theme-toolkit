@@ -3,13 +3,19 @@ import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'vite';
-import { SDK_PATH, SERVER_RENDERER_PATH, VUE_PATH } from './constants.js';
+import {
+    PRIVILEGED_GLOBAL_DEFINES,
+    SDK_PATH,
+    SERVER_RENDERER_PATH,
+    VUE_PATH,
+} from './constants.js';
 import { descriptorFor } from './descriptor.js';
 import { runtimePlugin, runtimeSource, serverRuntimeSource } from './runtime.js';
-import { importBoundaryPlugin } from './source-validation.js';
+import { assertCompiledModuleIsSafe, importBoundaryPlugin } from './source-validation.js';
 import { generateThemeTypes } from './type-generation.js';
 import type { ThemeDefinition, ThemeFile } from './types.js';
 import { sha256 } from './utilities.js';
+import { validationErrorFrom } from './validation-error.js';
 
 export async function buildTheme(theme: ThemeDefinition, output: string): Promise<string> {
     await generateThemeTypes(theme);
@@ -21,6 +27,7 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
         await build({
             root: theme.root,
             configFile: false,
+            define: PRIVILEGED_GLOBAL_DEFINES,
             plugins: [importBoundaryPlugin(theme), runtimePlugin(theme), vue()],
             resolve: {
                 alias: [
@@ -48,6 +55,8 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
                     },
                 },
             },
+        }).catch((error: unknown) => {
+            throw validationErrorFrom(error) ?? error;
         });
     } finally {
         await rm(buildEntry, { force: true });
@@ -63,6 +72,9 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
         .map((file) => `./${file.path}`);
     if (!entry) throw new Error('Vite did not emit a theme entry module.');
     if (!ssrEntry) throw new Error('Vite did not emit a theme server entry module.');
+    for (const file of inventory.filter((candidate) => candidate.path.endsWith('.js'))) {
+        await assertCompiledModuleIsSafe(theme.root, join(output, file.path));
+    }
 
     const releaseHash = sha256(
         inventory.map((file) => `${file.path}:${file.sha256}`).join('\n'),
@@ -95,6 +107,7 @@ export async function developmentServerArtifact(theme: ThemeDefinition): Promise
             /^assets\/theme-ssr-.*\.js$/.test(candidate.path),
         );
         if (!file) throw new Error('Vite did not emit a development theme server entry module.');
+        await assertCompiledModuleIsSafe(theme.root, join(output, file.path));
 
         return { contents: await readFile(join(output, file.path), 'utf8'), file };
     } finally {
@@ -114,6 +127,7 @@ async function compileServerRuntime(
         await build({
             root: theme.root,
             configFile: false,
+            define: PRIVILEGED_GLOBAL_DEFINES,
             plugins: [importBoundaryPlugin(theme), vue()],
             resolve: {
                 alias: [
@@ -123,7 +137,7 @@ async function compileServerRuntime(
                     { find: /^vue$/, replacement: VUE_PATH },
                 ],
             },
-            ssr: { noExternal: true },
+            ssr: { noExternal: true, target: 'webworker' },
             build: {
                 ssr: serverBuildEntry,
                 outDir: output,
@@ -136,6 +150,8 @@ async function compileServerRuntime(
                     },
                 },
             },
+        }).catch((error: unknown) => {
+            throw validationErrorFrom(error) ?? error;
         });
     } finally {
         await rm(serverBuildEntry, { force: true });
