@@ -13,7 +13,7 @@ Licensed under the MIT License.
 Theme repositories install the public packages:
 
 ```sh
-npm install --save-dev --save-exact @bopli/theme-cli@0.9.0 @bopli/theme-sdk@0.6.0
+npm install --save-dev --save-exact @bopli/theme-cli@0.9.1 @bopli/theme-sdk@0.6.0
 npx bopli-theme validate .
 npx bopli-theme types .
 npx bopli-theme build .

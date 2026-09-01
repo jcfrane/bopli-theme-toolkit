@@ -59,20 +59,14 @@ async function personalizePackage(
         dependencies: Record<string, string>;
     };
     const path = resolve(root, 'package.json');
-    const definition = JSON.parse(await readFile(path, 'utf8')) as {
-        name: string;
-        bopli: { handle: string; name: string };
-        devDependencies: Record<string, string>;
-    };
+    const personalized = (await readFile(path, 'utf8'))
+        .replaceAll('__THEME_HANDLE__', handle)
+        .replaceAll('__THEME_NAME__', headline(handle))
+        .replaceAll('__CLI_VERSION__', cliPackage.version)
+        .replaceAll('__SDK_VERSION__', cliPackage.dependencies['@bopli/theme-sdk'] ?? '');
 
-    definition.name = `@bopli-theme/${handle}`;
-    definition.bopli.handle = handle;
-    definition.bopli.name = headline(handle);
-    definition.devDependencies['@bopli/theme-cli'] = cliPackage.version;
-    definition.devDependencies['@bopli/theme-sdk'] =
-        cliPackage.dependencies['@bopli/theme-sdk'] ?? '';
-
-    await writeFile(path, `${JSON.stringify(definition, null, 4)}\n`);
+    JSON.parse(personalized);
+    await writeFile(path, personalized);
 }
 
 async function personalizeWorkflow(root: string, packageRoot: string): Promise<void> {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { format as formatWithPrettier, resolveConfig as resolvePrettierConfig } from 'prettier';
 import {
     createTheme,
     developmentDescriptorFor,
@@ -84,7 +85,8 @@ test('creates a pinned standalone-ready theme that validates and builds without 
 
     try {
         const created = await createTheme('my-theme', root);
-        const definition = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+        const packageSource = await readFile(join(root, 'package.json'), 'utf8');
+        const definition = JSON.parse(packageSource) as {
             name: string;
             bopli: { handle: string; name: string };
             scripts: Record<string, string>;
@@ -96,8 +98,14 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         const tsconfig = JSON.parse(await readFile(join(root, 'tsconfig.json'), 'utf8')) as {
             include: string[];
         };
+        const packagePath = join(root, 'package.json');
+        const prettierConfig = await resolvePrettierConfig(packagePath);
 
         assert.equal(created.root, root);
+        assert.equal(
+            packageSource,
+            await formatWithPrettier(packageSource, { ...prettierConfig, filepath: packagePath }),
+        );
         assert.equal(definition.name, '@bopli-theme/my-theme');
         assert.deepEqual(definition.bopli, {
             ...definition.bopli,
@@ -109,12 +117,12 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         assert.equal(definition.scripts.lint, 'eslint . --max-warnings=0');
         assert.match(definition.scripts.build, /npm run check/);
         assert.match(definition.scripts.check, /npm test/);
-        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.9.0');
+        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.9.1');
         assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.6.0');
         assert.doesNotMatch(JSON.stringify(definition), /file:/);
         assert.match(eslintConfig, /eslint-plugin-vue/);
         assert(tsconfig.include.includes('tests/**/*.ts'));
-        assert.match(workflow, /@theme-cli-v0\.9\.0/);
+        assert.match(workflow, /@theme-cli-v0\.9\.1/);
         assert.doesNotMatch(workflow, /toolkit-version/);
         assert.doesNotMatch(workflow, /__TOOLKIT_VERSION__/);
         assert.match(gitignore, /node_modules\//);

@@ -1,5 +1,5 @@
 {
-  "name": "@bopli-theme/starter-theme",
+  "name": "@bopli-theme/__THEME_HANDLE__",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,8 +7,8 @@
   "author": "Theme Author",
   "license": "MIT",
   "bopli": {
-    "handle": "starter-theme",
-    "name": "Starter Theme",
+    "handle": "__THEME_HANDLE__",
+    "name": "__THEME_NAME__",
     "requires": "^0.1",
     "colorModes": [
       "light",
@@ -38,8 +38,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@bopli/theme-cli": "0.0.0",
-    "@bopli/theme-sdk": "0.0.0",
+    "@bopli/theme-cli": "__CLI_VERSION__",
+    "@bopli/theme-sdk": "__SDK_VERSION__",
     "@types/node": "^22.13.5",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
