@@ -1,36 +1,57 @@
 {
-    "name": "@bopli-theme/starter-theme",
-    "private": true,
-    "version": "0.1.0",
-    "type": "module",
-    "description": "A public Bopli theme.",
-    "author": "Theme Author",
-    "license": "MIT",
-    "bopli": {
-        "handle": "starter-theme",
-        "name": "Starter Theme",
-        "requires": "^0.1",
-        "colorModes": [
-            "light",
-            "dark"
-        ],
-        "settings": {}
-    },
-    "scripts": {
-        "validate": "bopli-theme validate .",
-        "types": "bopli-theme types .",
-        "types:check": "npm run types && vue-tsc --noEmit -p tsconfig.json",
-        "build": "npm run types:check && bopli-theme build .",
-        "package": "npm run types:check && bopli-theme package .",
-        "dev": "bopli-theme dev .",
-        "dev:app": "bopli-theme dev . --app ../bopli-app"
-    },
-    "devDependencies": {
-        "@bopli/theme-cli": "0.0.0",
-        "@bopli/theme-sdk": "0.0.0",
-        "typescript": "^5.9.3",
-        "vite": "^8.0.0",
-        "vue": "^3.5.13",
-        "vue-tsc": "^2.2.4"
+  "name": "@bopli-theme/starter-theme",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A public Bopli theme.",
+  "author": "Theme Author",
+  "license": "MIT",
+  "bopli": {
+    "handle": "starter-theme",
+    "name": "Starter Theme",
+    "requires": "^0.1",
+    "colorModes": [
+      "light",
+      "dark"
+    ],
+    "settings": {
+      "accent_color": {
+        "name": "Accent color",
+        "type": "color",
+        "default": "#e95420"
+      }
     }
+  },
+  "scripts": {
+    "check": "npm run lint && npm run format:check && npm run types:check && npm test",
+    "validate": "bopli-theme validate .",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --passWithNoTests",
+    "types": "bopli-theme types .",
+    "types:check": "npm run types && vue-tsc --noEmit -p tsconfig.json",
+    "build": "npm run check && bopli-theme build .",
+    "package": "npm run check && bopli-theme package .",
+    "dev": "bopli-theme dev .",
+    "dev:app": "bopli-theme dev . --app ../bopli-app"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@bopli/theme-cli": "0.0.0",
+    "@bopli/theme-sdk": "0.0.0",
+    "@types/node": "^22.13.5",
+    "eslint": "^10.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.10.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.68.0",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.10",
+    "vue": "^3.5.13",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^2.2.4"
+  }
 }

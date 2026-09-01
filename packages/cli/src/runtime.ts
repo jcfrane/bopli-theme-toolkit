@@ -1,4 +1,5 @@
 import type { Plugin, ViteDevServer } from 'vite';
+import { resolve } from 'node:path';
 import {
     PUBLIC_DEV_ENTRY,
     RESOLVED_VIRTUAL_ENTRY,
@@ -40,17 +41,30 @@ export function runtimeSource(theme: ThemeDefinition): string {
 
     for (const [handle, template] of Object.entries(theme.templates)) {
         const identifier = `Template${index++}`;
-        imports.push(`import ${identifier} from ${JSON.stringify(template.source)};`);
+        imports.push(
+            `import ${identifier} from ${JSON.stringify(resolve(theme.root, template.source))};`,
+        );
         registrations.push(`${JSON.stringify(handle)}: ${identifier}`);
     }
 
     return `
-import { createApp, defineComponent, h, shallowReactive } from 'vue';
-import { BOPLI_CONTENT_KEY, BOPLI_NAVIGATION_KEY } from '@bopli/theme-sdk';
+import { createApp, defineComponent, h, shallowReactive, shallowRef } from 'vue';
+import { BOPLI_COLOR_MODE_KEY, BOPLI_CONTENT_KEY, BOPLI_NAVIGATION_KEY } from '@bopli/theme-sdk';
 ${imports.join('\n')}
 const templates = { ${registrations.join(', ')} };
+const declaredColorModes = ${JSON.stringify(theme.colorModes)};
+function fallbackColorMode() {
+    const mode = shallowRef(declaredColorModes[0] ?? 'light');
+    return {
+        mode,
+        modes: declaredColorModes,
+        setMode(next) {
+            if (declaredColorModes.includes(next)) mode.value = next;
+        },
+    };
+}
 export const runtimeApiVersion = ${RUNTIME_API_VERSION};
-export function mount({ element, template, props, navigation, content }) {
+export function mount({ element, template, props, navigation, content, colorMode = fallbackColorMode() }) {
     if (!templates[template]) throw new Error('Unknown theme template: ' + template);
     const state = shallowReactive({ template, props });
     const Root = defineComponent({
@@ -60,6 +74,7 @@ export function mount({ element, template, props, navigation, content }) {
     const app = createApp(Root);
     app.provide(BOPLI_NAVIGATION_KEY, navigation);
     app.provide(BOPLI_CONTENT_KEY, content);
+    app.provide(BOPLI_COLOR_MODE_KEY, colorMode);
     app.mount(element);
     const handleClick = (event) => {
         const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
@@ -93,18 +108,31 @@ export function serverRuntimeSource(theme: ThemeDefinition): string {
 
     for (const [handle, template] of Object.entries(theme.templates)) {
         const identifier = `Template${index++}`;
-        imports.push(`import ${identifier} from ${JSON.stringify(template.source)};`);
+        imports.push(
+            `import ${identifier} from ${JSON.stringify(resolve(theme.root, template.source))};`,
+        );
         registrations.push(`${JSON.stringify(handle)}: ${identifier}`);
     }
 
     return `
-import { createSSRApp, defineComponent, h } from 'vue';
+import { createSSRApp, defineComponent, h, shallowRef } from 'vue';
 import { renderToString } from '@vue/server-renderer';
-import { BOPLI_CONTENT_KEY, BOPLI_NAVIGATION_KEY } from '@bopli/theme-sdk';
+import { BOPLI_COLOR_MODE_KEY, BOPLI_CONTENT_KEY, BOPLI_NAVIGATION_KEY } from '@bopli/theme-sdk';
 ${imports.join('\n')}
 const templates = { ${registrations.join(', ')} };
+const declaredColorModes = ${JSON.stringify(theme.colorModes)};
+function fallbackColorMode() {
+    const mode = shallowRef(declaredColorModes[0] ?? 'light');
+    return {
+        mode,
+        modes: declaredColorModes,
+        setMode(next) {
+            if (declaredColorModes.includes(next)) mode.value = next;
+        },
+    };
+}
 export const runtimeApiVersion = ${RUNTIME_API_VERSION};
-export async function render({ template, props, content }) {
+export async function render({ template, props, content, colorMode = fallbackColorMode() }) {
     if (!templates[template]) throw new Error('Unknown theme template: ' + template);
     const Root = defineComponent({
         name: 'BopliThemeSsrRoot',
@@ -113,6 +141,7 @@ export async function render({ template, props, content }) {
     const app = createSSRApp(Root);
     app.provide(BOPLI_NAVIGATION_KEY, { visit() {} });
     app.provide(BOPLI_CONTENT_KEY, content);
+    app.provide(BOPLI_COLOR_MODE_KEY, colorMode);
     return renderToString(app);
 }
 `;

@@ -401,7 +401,7 @@ function analyzeModule(
             typeof node.name === 'string' &&
             PRIVILEGED_GLOBALS.has(node.name) &&
             !isNonReferenceIdentifier(parent, key) &&
-            !(allowGuardedProcess && isGuardedProcessReference(node, parent, ancestors))
+            !(allowGuardedProcess && isGuardedPrivilegedReference(node, parent, ancestors))
         ) {
             analysis.privilegedGlobal = { name: node.name, line };
         }
@@ -436,36 +436,58 @@ function walkAst(
     }
 }
 
-function isGuardedProcessReference(
+function isGuardedPrivilegedReference(
     node: AstNode,
     parent: AstNode | null,
     ancestors: AstNode[],
 ): boolean {
-    if (node.name !== 'process') return false;
     if (parent?.type === 'UnaryExpression' && parent.operator === 'typeof') return true;
+    if (node.name === 'process' && isNodeEnvReference(node, ancestors)) return true;
+    if (typeof node.name !== 'string') return false;
+    const name = node.name;
 
     return ancestors.some(
         (ancestor) =>
-            ancestor.type === 'LogicalExpression' &&
-            ancestor.operator === '&&' &&
-            isAstNode(ancestor.left) &&
-            isAstNode(ancestor.right) &&
-            containsTypeofProcess(ancestor.left) &&
-            containsNode(ancestor.right, node),
+            ((ancestor.type === 'LogicalExpression' &&
+                ancestor.operator === '&&' &&
+                isAstNode(ancestor.left) &&
+                isAstNode(ancestor.right) &&
+                containsTypeofIdentifier(ancestor.left, name) &&
+                containsNode(ancestor.right, node)) ||
+                (ancestor.type === 'ConditionalExpression' &&
+                    isAstNode(ancestor.test) &&
+                    containsTypeofIdentifier(ancestor.test, name))),
     );
 }
 
-function containsTypeofProcess(node: AstNode): boolean {
+function isNodeEnvReference(processNode: AstNode, ancestors: AstNode[]): boolean {
+    return ancestors.some(
+        (ancestor) =>
+            ancestor.type === 'MemberExpression' &&
+            ancestor.computed !== true &&
+            isAstNode(ancestor.object) &&
+            ancestor.object.type === 'MemberExpression' &&
+            ancestor.object.computed !== true &&
+            isAstNode(ancestor.object.object) &&
+            ancestor.object.object === processNode &&
+            isAstNode(ancestor.object.property) &&
+            ancestor.object.property.name === 'env' &&
+            isAstNode(ancestor.property) &&
+            ancestor.property.name === 'NODE_ENV',
+    );
+}
+
+function containsTypeofIdentifier(node: AstNode, name: string): boolean {
     if (
         node.type === 'UnaryExpression' &&
         node.operator === 'typeof' &&
         isAstNode(node.argument) &&
         node.argument.type === 'Identifier' &&
-        node.argument.name === 'process'
+        node.argument.name === name
     ) {
         return true;
     }
-    return childNodes(node).some(containsTypeofProcess);
+    return childNodes(node).some((child) => containsTypeofIdentifier(child, name));
 }
 
 function containsNode(root: AstNode, candidate: AstNode): boolean {

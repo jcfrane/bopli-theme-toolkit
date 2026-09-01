@@ -20,7 +20,8 @@ import { validationErrorFrom } from './validation-error.js';
 export async function buildTheme(theme: ThemeDefinition, output: string): Promise<string> {
     await generateThemeTypes(theme);
     await rm(output, { recursive: true, force: true });
-    const buildEntry = join(theme.root, '.bopli-build-entry.ts');
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'bopli-theme-build-'));
+    const buildEntry = join(temporaryRoot, 'browser-entry.ts');
     await writeFile(buildEntry, runtimeSource(theme));
 
     try {
@@ -59,7 +60,7 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
             throw validationErrorFrom(error) ?? error;
         });
     } finally {
-        await rm(buildEntry, { force: true });
+        await rm(temporaryRoot, { recursive: true, force: true });
     }
     await compileServerRuntime(theme, output, false);
 
@@ -88,7 +89,7 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
         preview ? `./${preview}` : null,
     );
     await writeFile(join(output, 'theme.json'), `${JSON.stringify(descriptor, null, 2)}\n`);
-    await writeFile(join(theme.root, '.bopli-release-hash'), `${releaseHash}\n`);
+    await writeFile(join(output, '.bopli-release-hash'), `${releaseHash}\n`);
 
     return releaseHash;
 }
@@ -120,7 +121,8 @@ async function compileServerRuntime(
     output: string,
     emptyOutDir: boolean,
 ): Promise<void> {
-    const serverBuildEntry = join(theme.root, '.bopli-build-ssr-entry.ts');
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'bopli-theme-ssr-build-'));
+    const serverBuildEntry = join(temporaryRoot, 'server-entry.ts');
     await writeFile(serverBuildEntry, serverRuntimeSource(theme));
 
     try {
@@ -154,7 +156,7 @@ async function compileServerRuntime(
             throw validationErrorFrom(error) ?? error;
         });
     } finally {
-        await rm(serverBuildEntry, { force: true });
+        await rm(temporaryRoot, { recursive: true, force: true });
     }
 }
 

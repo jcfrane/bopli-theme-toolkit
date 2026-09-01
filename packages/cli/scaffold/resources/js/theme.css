@@ -1,0 +1,12 @@
+.bopli-theme {
+  --color-accent-hover: color-mix(in srgb, var(--color-accent), black 18%);
+  --color-accent-subtle: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.bopli-theme a {
+  color: var(--color-accent);
+}
+
+.bopli-theme a:hover {
+  color: var(--color-accent-hover);
+}

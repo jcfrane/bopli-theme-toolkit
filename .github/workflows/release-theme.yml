@@ -6,9 +6,6 @@ on:
       node-version:
         type: string
         default: '22'
-      toolkit-version:
-        type: string
-        default: '0.8.0'
 
 permissions:
   contents: read
@@ -23,8 +20,8 @@ jobs:
       - name: Checkout pinned theme toolkit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
-          repository: jcfrane/bopli-theme-toolkit
-          ref: v${{ inputs.toolkit-version }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .bopli-toolkit
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4
@@ -37,23 +34,21 @@ jobs:
       - run: npm ci --prefix .bopli-toolkit
       - run: npm test --prefix .bopli-toolkit
       - name: Install pinned theme dependencies
-        run: |
-          ln --symbolic "${GITHUB_WORKSPACE}/.bopli-toolkit" "${GITHUB_WORKSPACE}/../bopli-theme-toolkit"
-          npm ci
-      - run: node .bopli-toolkit/packages/cli/bin/bopli-theme.js validate .
-      - run: node .bopli-toolkit/packages/cli/bin/bopli-theme.js build .
+        run: npm ci
+      - run: npm run validate
+      - run: npm run package
       - name: Name release artifact
         id: release
         run: |
           set -euo pipefail
           HANDLE=$(node -p "require('./package.json').bopli.handle")
           VERSION=$(node -p "require('./package.json').version")
-          RELEASE_HASH=$(cat .bopli-release-hash)
+          RELEASE_HASH=$(cat dist/.bopli-release-hash)
           echo "artifact=${HANDLE}-${VERSION}-${RELEASE_HASH}" >> "${GITHUB_OUTPUT}"
       - name: Upload compiled release ZIP
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.release.outputs.artifact }}
-          path: dist/
+          path: dist/*.zip
           if-no-files-found: error
           retention-days: 30

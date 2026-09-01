@@ -1,5 +1,3 @@
 node_modules/
 dist/
-.bopli-release-hash
 /resources/js/.bopli/
-/*.zip

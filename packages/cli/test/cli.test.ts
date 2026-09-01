@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import test from 'node:test';
@@ -27,7 +27,9 @@ test('validates the starter theme contract', async () => {
     assert.equal(theme.templates.page?.default, true);
     assert.equal(theme.templates.entry?.default, true);
     assert.equal(theme.starter?.version, 1);
-    assert.deepEqual(theme.settings, {});
+    assert.deepEqual(theme.settings, {
+        accent_color: { name: 'Accent color', type: 'color', default: '#e95420' },
+    });
     assert.equal((theme.starter?.pages[0] as { path?: string })?.path, '/');
 });
 
@@ -90,6 +92,10 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         };
         const workflow = await readFile(join(root, '.github/workflows/release.yml'), 'utf8');
         const gitignore = await readFile(join(root, '.gitignore'), 'utf8');
+        const eslintConfig = await readFile(join(root, 'eslint.config.js'), 'utf8');
+        const tsconfig = JSON.parse(await readFile(join(root, 'tsconfig.json'), 'utf8')) as {
+            include: string[];
+        };
 
         assert.equal(created.root, root);
         assert.equal(definition.name, '@bopli-theme/my-theme');
@@ -100,10 +106,16 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         });
         assert.equal(definition.scripts.dev, 'bopli-theme dev .');
         assert.equal(definition.scripts['dev:app'], 'bopli-theme dev . --app ../bopli-app');
-        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.8.0');
-        assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.5.0');
+        assert.equal(definition.scripts.lint, 'eslint . --max-warnings=0');
+        assert.match(definition.scripts.build, /npm run check/);
+        assert.match(definition.scripts.check, /npm test/);
+        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.9.0');
+        assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.6.0');
         assert.doesNotMatch(JSON.stringify(definition), /file:/);
-        assert.match(workflow, /@v0\.8\.0/);
+        assert.match(eslintConfig, /eslint-plugin-vue/);
+        assert(tsconfig.include.includes('tests/**/*.ts'));
+        assert.match(workflow, /@theme-cli-v0\.9\.0/);
+        assert.doesNotMatch(workflow, /toolkit-version/);
         assert.doesNotMatch(workflow, /__TOOLKIT_VERSION__/);
         assert.match(gitignore, /node_modules\//);
         await assert.rejects(createTheme('my-theme', root), /already exists/);
@@ -238,7 +250,10 @@ test('keeps tagged releases manual-first and produces an upload-ready Actions ZI
     );
 
     assert.match(workflow, /uses: actions\/upload-artifact@[a-f0-9]{40}/);
-    assert.match(workflow, /path: dist\//);
+    assert.match(workflow, /repository: \$\{\{ job\.workflow_repository \}\}/);
+    assert.match(workflow, /ref: \$\{\{ job\.workflow_sha \}\}/);
+    assert.match(workflow, /path: dist\/\*\.zip/);
+    assert.doesNotMatch(workflow, /toolkit-version|ln --symbolic/);
     assert.match(workflow, /name: \$\{\{ steps\.release\.outputs\.artifact \}\}/);
     assert.doesNotMatch(workflow, /R2_|THEME_ASSET_BASE_URL|aws s3|bopli:theme:install/);
 });
@@ -277,6 +292,7 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
             basename(first.archive),
             `${theme.handle}-${theme.version}-${first.releaseHash}.zip`,
         );
+        assert.equal(first.archive, join(output, basename(first.archive)));
         assert.deepEqual(zipEntryNames(firstBytes), expectedEntries);
         assert.match(descriptor.runtime.ssrEntry, /^\.\/assets\/theme-ssr-.*\.js$/);
         assert(descriptor.files.some((file) => `./${file.path}` === descriptor.runtime.ssrEntry));
@@ -289,9 +305,12 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
         assert.match(stylesheet, /marker-[^)]+\.svg/);
         assert.doesNotMatch(stylesheet, /data:image\/svg\+xml/);
         assert.equal(
-            (await readFile(join(root, '.bopli-release-hash'), 'utf8')).trim(),
+            (await readFile(join(output, '.bopli-release-hash'), 'utf8')).trim(),
             first.releaseHash,
         );
+        await assert.rejects(access(join(root, '.bopli-release-hash')));
+        await assert.rejects(access(join(root, '.bopli-build-entry.ts')));
+        await assert.rejects(access(join(root, '.bopli-build-ssr-entry.ts')));
 
         const browserSource = await readFile(
             join(output, descriptor.runtime.entry.replace(/^\.\//, '')),
@@ -622,7 +641,7 @@ test('builds a declared pure ESM package from the theme node_modules', async () 
         await installTestPackage(
             root,
             'tiny-esm',
-            'export const answer = typeof process !== "undefined" && process.env.DEBUG ? 1 : 42;',
+            'export const answer = process.env.NODE_ENV === "production" ? 42 : 1;',
         );
         await appendToHome(
             root,

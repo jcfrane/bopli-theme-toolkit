@@ -10,18 +10,21 @@
 
 <script setup lang="ts">
 import type { EntryProps } from '../../.bopli/types';
+import ThemeLayout from '../../components/ThemeLayout.vue';
 
 defineProps<EntryProps>();
 </script>
 
 <template>
-  <main>
-    <a href="/">{{ site.name }}</a>
-    <article>
-      <h1>{{ entry.title }}</h1>
-      <p>{{ entry.body }}</p>
-    </article>
-  </main>
+  <ThemeLayout :settings="settings">
+    <main>
+      <a href="/">{{ site.name }}</a>
+      <article>
+        <h1>{{ entry.title }}</h1>
+        <p>{{ entry.body }}</p>
+      </article>
+    </main>
+  </ThemeLayout>
 </template>
 
 <style scoped>

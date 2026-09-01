@@ -12,7 +12,13 @@
     "light",
     "dark"
   ],
-  "settings": {},
+  "settings": {
+    "accent_color": {
+      "name": "Accent color",
+      "type": "color",
+      "default": "#e95420"
+    }
+  },
   "templates": {
     "home": {
       "name": "Home",
@@ -90,27 +96,27 @@
     }
   },
   "runtime": {
-    "entry": "./assets/theme-iurpS65l.js",
-    "ssrEntry": "./assets/theme-ssr-BIdW2cDk.js",
+    "entry": "./assets/theme-DcLuKduh.js",
+    "ssrEntry": "./assets/theme-ssr-RTilcHj9.js",
     "styles": [
-      "./assets/style-BB8GNsjp.css"
+      "./assets/style-D6BqXrt9.css"
     ]
   },
   "files": [
     {
-      "path": "assets/style-BB8GNsjp.css",
-      "size": 162,
-      "sha256": "6d975a47b726c228806194f812d207c78f9a63df0b6eafabdcb11af301979bc5"
+      "path": "assets/style-D6BqXrt9.css",
+      "size": 420,
+      "sha256": "8e58b2154e233cf1d894d58b75137720dff5101c69efea2c45dd44a1885c92da"
     },
     {
-      "path": "assets/theme-iurpS65l.js",
-      "size": 62052,
-      "sha256": "3473609a5e5c51fc8e9af42bae3baf79e1d2deb3fc09fce67804fbc39db98e07"
+      "path": "assets/theme-DcLuKduh.js",
+      "size": 63736,
+      "sha256": "71f2927ba373ea29fe90df814220127515792cb056975b073f7f19094ca0eb89"
     },
     {
-      "path": "assets/theme-ssr-BIdW2cDk.js",
-      "size": 74402,
-      "sha256": "105dabe889832ef1860ad369fcec84fd6d9028df713009dff6b140a69f861ac4"
+      "path": "assets/theme-ssr-RTilcHj9.js",
+      "size": 77174,
+      "sha256": "b7d83e82d5f953759a4a36231285beafac972da0a0d28940b1ec7fee456eb1eb"
     }
   ]
 }

@@ -13,13 +13,13 @@ export interface PackagedThemeRelease {
     releaseHash: string;
 }
 
-/** Builds one theme and writes an upload-ready deterministic ZIP beside the theme source. */
+/** Builds one theme and writes an upload-ready deterministic ZIP inside its output directory. */
 export async function packageTheme(
     theme: ThemeDefinition,
     output: string,
 ): Promise<PackagedThemeRelease> {
     const releaseHash = await buildTheme(theme, output);
-    const archive = join(theme.root, `${theme.handle}-${theme.version}-${releaseHash}.zip`);
+    const archive = join(output, `${theme.handle}-${theme.version}-${releaseHash}.zip`);
 
     await writeReleaseArchive(output, archive);
 
@@ -31,8 +31,12 @@ async function writeReleaseArchive(output: string, archive: string): Promise<voi
     const outputRoot = resolve(output);
     const archivePath = resolve(archive);
     const archiveRelativeToOutput = relative(outputRoot, archivePath);
-    if (archiveRelativeToOutput === '' || (!archiveRelativeToOutput.startsWith('..') && !isAbsolute(archiveRelativeToOutput))) {
-        throw new Error('The packaged release ZIP must be written outside its dist directory.');
+    if (
+        archiveRelativeToOutput === '' ||
+        archiveRelativeToOutput.startsWith('..') ||
+        isAbsolute(archiveRelativeToOutput)
+    ) {
+        throw new Error('The packaged release ZIP must be written inside its dist directory.');
     }
 
     const files = await releaseFiles(outputRoot);
@@ -76,7 +80,9 @@ async function releaseFiles(root: string, current = root): Promise<string[]> {
         if (entry.isDirectory()) {
             files.push(...(await releaseFiles(root, path)));
         } else if (entry.isFile()) {
-            files.push(relative(root, path).split(sep).join('/'));
+            if (entry.name !== '.bopli-release-hash') {
+                files.push(relative(root, path).split(sep).join('/'));
+            }
         } else {
             throw new Error(`Compiled release entry [${relative(root, path)}] must be a regular file.`);
         }

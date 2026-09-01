@@ -14,21 +14,29 @@
         "types:test": "tsc -p tsconfig.test.json",
         "test": "npm run build && npm run types:test && node --import tsx --test packages/*/test/*.test.ts",
         "protocol:check": "node --import tsx packages/protocol/scripts/check.ts",
-        "check": "npm run protocol:check && npm run build && npm run types:starter && node packages/cli/bin/bopli-theme.js validate starter-theme",
+        "check": "npm run protocol:check && npm run build && npm run types:starter && npm run lint --prefix starter-theme && npm run format:check --prefix starter-theme && npm test --prefix starter-theme && node packages/cli/bin/bopli-theme.js validate starter-theme",
         "build:starter": "npm run build && npm run types:starter && node packages/cli/bin/bopli-theme.js build starter-theme && node --import tsx packages/protocol/scripts/sync-starter-fixture.ts"
     },
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
         "@types/node": "^22.13.5",
         "@types/semver": "^7.7.1",
         "@types/yazl": "^3.3.1",
         "@vitejs/plugin-vue": "^6.0.0",
         "@vue/compiler-sfc": "^3.5.13",
+        "eslint": "^10.9.1",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-vue": "^10.10.0",
+        "globals": "^17.11.0",
         "json-schema-to-typescript": "^15.0.4",
         "semver": "^7.7.2",
         "tsx": "^4.20.6",
         "typescript": "^5.9.3",
         "vite": "^8.0.0",
+        "vitest": "^4.1.10",
         "vue": "^3.5.13",
-        "vue-tsc": "^2.2.4"
+        "vue-eslint-parser": "^10.4.1",
+        "vue-tsc": "^2.2.4",
+        "typescript-eslint": "^8.68.0"
     }
 }

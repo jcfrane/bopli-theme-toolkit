@@ -42,6 +42,7 @@ export function previewHarnessSource(theme: ThemeDefinition): string {
 
     return `
 import { mount } from ${JSON.stringify(PUBLIC_DEV_ENTRY)};
+import { shallowRef } from 'vue';
 
 const fixture = ${fixture};
 const toolbar = document.querySelector('[data-bopli-toolbar]');
@@ -123,6 +124,25 @@ const navigation = {
     },
 };
 
+const declaredColorModes = ${JSON.stringify(theme.colorModes)};
+const colorModeStorageKey = ${JSON.stringify(`bopli:theme:${theme.handle}:color-mode`)};
+const storedColorMode = localStorage.getItem(colorModeStorageKey);
+const initialColorMode = declaredColorModes.includes(storedColorMode)
+    ? storedColorMode
+    : (declaredColorModes[0] ?? 'light');
+const colorModeValue = shallowRef(initialColorMode);
+const colorMode = {
+    mode: colorModeValue,
+    modes: declaredColorModes,
+    setMode(next) {
+        if (!declaredColorModes.includes(next)) return;
+        colorModeValue.value = next;
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem(colorModeStorageKey, next);
+    },
+};
+document.documentElement.dataset.theme = initialColorMode;
+
 function render() {
     const selected = fixture.templates.find((template) => template.handle === templateSelect.value);
     if (!selected) return;
@@ -130,7 +150,7 @@ function render() {
     errorBox.hidden = true;
     try {
         if (session) session.update({ template: selected.handle, props });
-        else session = mount({ element: mountPoint, template: selected.handle, props, navigation, content });
+        else session = mount({ element: mountPoint, template: selected.handle, props, navigation, content, colorMode });
     } catch (error) {
         errorBox.textContent = error instanceof Error ? error.message : String(error);
         errorBox.hidden = false;

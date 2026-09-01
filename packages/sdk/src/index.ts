@@ -3,7 +3,10 @@ import {
     onScopeDispose,
     onServerPrefetch,
     shallowRef,
+    toValue,
+    watch,
     type InjectionKey,
+    type MaybeRefOrGetter,
     type Ref,
 } from 'vue';
 
@@ -133,6 +136,12 @@ export type BopliNavigation = {
     visit(url: string): void;
 };
 
+export type BopliColorModeState = {
+    mode: Readonly<Ref<string>>;
+    modes: readonly string[];
+    setMode(mode: string): void;
+};
+
 export type BopliContentSource =
     | 'pages'
     | 'blog.posts'
@@ -213,6 +222,7 @@ export type BopliThemeMountPayload = {
     props: Record<string, unknown>;
     navigation: BopliNavigation;
     content: BopliContentClient;
+    colorMode: BopliColorModeState;
 };
 
 export type BopliThemeSession = {
@@ -229,6 +239,7 @@ export type BopliThemeServerRenderPayload = {
     template: string;
     props: Record<string, unknown>;
     content: BopliContentClient;
+    colorMode: BopliColorModeState;
 };
 
 export type BopliThemeServerModule = {
@@ -243,6 +254,10 @@ export const BOPLI_NAVIGATION_KEY: InjectionKey<BopliNavigation> = Symbol.for(
 export const BOPLI_CONTENT_KEY: InjectionKey<BopliContentClient> = Symbol.for(
     'bopli.theme.content',
 ) as InjectionKey<BopliContentClient>;
+
+export const BOPLI_COLOR_MODE_KEY: InjectionKey<BopliColorModeState> = Symbol.for(
+    'bopli.theme.color-mode',
+) as InjectionKey<BopliColorModeState>;
 
 export function useBopliNavigation(): BopliNavigation {
     const navigation = inject(BOPLI_NAVIGATION_KEY);
@@ -264,8 +279,18 @@ export function useBopliContent(): BopliContentClient {
     return content;
 }
 
+export function useBopliColorMode(): BopliColorModeState {
+    const colorMode = inject(BOPLI_COLOR_MODE_KEY);
+
+    if (!colorMode) {
+        throw new Error('Bopli color mode is only available inside the theme runtime.');
+    }
+
+    return colorMode;
+}
+
 export function useBopliQuery<T = Record<string, unknown>>(
-    query: BopliContentQuery,
+    query: MaybeRefOrGetter<BopliContentQuery>,
 ): BopliQueryState<T> {
     const content = useBopliContent();
     const data = shallowRef<T[]>([]);
@@ -283,7 +308,10 @@ export function useBopliQuery<T = Record<string, unknown>>(
         error.value = null;
 
         try {
-            const response = await content.query<T>(query, { signal: requestController.signal });
+            const response = await content.query<T>(toValue(query), {
+                signal: requestController.signal,
+            });
+            if (requestController.signal.aborted) return;
             data.value = response.data;
             meta.value = response.meta;
             links.value = response.links;
@@ -296,8 +324,15 @@ export function useBopliQuery<T = Record<string, unknown>>(
         }
     };
 
-    const initial = refresh();
-    onServerPrefetch(() => initial);
+    let pending = Promise.resolve();
+    watch(
+        () => toValue(query),
+        () => {
+            pending = refresh();
+        },
+        { deep: true, immediate: true },
+    );
+    onServerPrefetch(() => pending);
     onScopeDispose(() => controller?.abort());
 
     return {

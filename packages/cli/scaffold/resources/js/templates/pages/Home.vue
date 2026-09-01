@@ -6,16 +6,19 @@
 
 <script setup lang="ts">
 import type { HomeProps } from '../../.bopli/types';
+import ThemeLayout from '../../components/ThemeLayout.vue';
 
 defineProps<HomeProps>();
 </script>
 
 <template>
-  <main>
-    <h1>{{ page.title }}</h1>
-    <p>{{ site.tagline }}</p>
-    <p v-if="typeof page.fields.body === 'string'">{{ page.fields.body }}</p>
-  </main>
+  <ThemeLayout :settings="settings">
+    <main>
+      <h1>{{ page.title }}</h1>
+      <p>{{ site.tagline }}</p>
+      <p v-if="typeof page.fields.body === 'string'">{{ page.fields.body }}</p>
+    </main>
+  </ThemeLayout>
 </template>
 
 <style scoped>
