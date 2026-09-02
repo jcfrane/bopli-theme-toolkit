@@ -1,6 +1,6 @@
 import type {
-    ContentFieldType,
     JsonObject,
+    TemplateField,
     ThemeDefinition,
     ThemeSetting,
     ThemeTemplate,
@@ -172,8 +172,15 @@ function templateProps(
             seoTitle: null,
             seoDescription: null,
         };
+        const authoredFields = objectValue(page.fields);
+        const previewFields = Object.fromEntries(
+            Object.entries(template.fields ?? {}).map(([fieldHandle, field]) => [
+                fieldHandle,
+                authoredFields[fieldHandle] ?? previewFieldValue(field, fieldHandle),
+            ]),
+        );
 
-        return { ...shared, page: publicValue(page) };
+        return { ...shared, page: publicValue({ ...page, fields: previewFields }) };
     }
 
     if (template.kind === 'entry') {
@@ -237,7 +244,7 @@ function previewEntry(
             const source = typeof fieldMap[fieldHandle] === 'string' ? fieldMap[fieldHandle] : fieldHandle;
             return [
                 fieldHandle,
-                starterFields[source] ?? previewFieldValue(field.type, field.name),
+                starterFields[source] ?? previewFieldValue(field, fieldHandle),
             ];
         }),
     );
@@ -256,7 +263,9 @@ function previewEntry(
     };
 }
 
-function previewFieldValue(type: ContentFieldType, name: string): unknown {
+function previewFieldValue(field: TemplateField, handle: string): unknown {
+    const { type, name } = field;
+    if (type === 'list') return previewListValue(handle, field);
     if (type === 'number') return 42;
     if (type === 'boolean') return true;
     if (type === 'date_time') return PREVIEW_DATE;
@@ -267,6 +276,31 @@ function previewFieldValue(type: ContentFieldType, name: string): unknown {
     if (type === 'slug') return 'preview-value';
 
     return `Preview value for ${name}.`;
+}
+
+function previewListValue(handle: string, field: TemplateField): JsonObject[] {
+    if (handle === 'skills') {
+        return ['Go', 'Rust', 'Postgres', 'Linux', 'Kubernetes'].map((label) => ({ label }));
+    }
+
+    if (handle === 'timeline') {
+        return [
+            { year: '2026', description: 'Started open-sourcing this blog and its CMS' },
+            { year: '2024', description: 'Led the rewrite of a high-volume event pipeline' },
+            { year: '2022', description: 'Gave a first conference talk from a terminal' },
+        ];
+    }
+
+    const children = field.fields ?? {};
+
+    return [
+        Object.fromEntries(
+            Object.entries(children).map(([childHandle, child]) => [
+                childHandle,
+                previewFieldValue(child, childHandle),
+            ]),
+        ),
+    ];
 }
 
 function paginatedProps(data: JsonObject[]): JsonObject {

@@ -1,6 +1,6 @@
 {
     "name": "@bopli/theme-cli",
-    "version": "0.9.1",
+    "version": "0.10.0",
     "description": "Create, validate, type, build, package, and locally preview independently deployed Bopli themes.",
     "type": "module",
     "license": "MIT",
@@ -39,8 +39,8 @@
         "node": ">=20.19.0"
     },
     "dependencies": {
-        "@bopli/theme-protocol": "0.1.0",
-        "@bopli/theme-sdk": "0.6.0",
+        "@bopli/theme-protocol": "0.2.0",
+        "@bopli/theme-sdk": "0.7.0",
         "@vitejs/plugin-vue": "^6.0.0",
         "@vue/compiler-sfc": "^3.5.13",
         "semver": "^7.7.2",

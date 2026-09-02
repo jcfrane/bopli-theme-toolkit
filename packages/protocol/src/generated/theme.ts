@@ -13,6 +13,34 @@ export type ThemeSetting = {
      */
     options?: [string, ...string[]];
 };
+export type TemplateField = {
+    [k: string]: unknown;
+} & {
+    name: string;
+    type:
+        | 'short_text'
+        | 'long_text'
+        | 'rich_text'
+        | 'number'
+        | 'boolean'
+        | 'date_time'
+        | 'select'
+        | 'slug'
+        | 'image'
+        | 'json'
+        | 'relationship'
+        | 'list';
+    required?: boolean;
+    helpText?: string;
+    /**
+     * @minItems 1
+     * @maxItems 50
+     */
+    options?: [string, ...string[]];
+    minItems?: number;
+    maxItems?: number;
+    fields?: TemplateFields;
+};
 
 export interface ThemeDescriptor {
     schemaVersion: 1;
@@ -62,22 +90,6 @@ export interface Template {
 }
 export interface TemplateFields {
     [k: string]: TemplateField;
-}
-export interface TemplateField {
-    name: string;
-    type:
-        | 'short_text'
-        | 'long_text'
-        | 'rich_text'
-        | 'number'
-        | 'boolean'
-        | 'date_time'
-        | 'select'
-        | 'slug'
-        | 'image'
-        | 'json'
-        | 'relationship';
-    required?: boolean;
 }
 export interface StarterRecipe {
     version: 1;

@@ -6,6 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { format as formatWithPrettier, resolveConfig as resolvePrettierConfig } from 'prettier';
 import {
+    addPageTemplate,
     createTheme,
     developmentDescriptorFor,
     developmentRegistrationArguments,
@@ -19,6 +20,19 @@ import { previewFixtureFor } from '../dist/preview-fixtures.js';
 import { previewHarnessHtml, previewHarnessSource } from '../dist/preview-harness.js';
 
 const TOOLKIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+
+test('adds a paired typed Page template without requiring manifest memorization', async () => {
+    await withStarterTheme(async (root) => {
+        const added = await addPageTemplate('about-us', root);
+        const source = await readFile(added.source, 'utf8');
+        const companion = await readFile(added.companion, 'utf8');
+
+        assert.match(source, /AboutUsProps/);
+        assert.match(companion, /definePageTemplate/);
+        assert.match(companion, /body: field\.longText\(\)/);
+        await assert.rejects(addPageTemplate('about-us', root), /already exists/);
+    });
+});
 
 test('validates the starter theme contract', async () => {
     const theme = await inspectTheme(join(TOOLKIT_ROOT, 'starter-theme'));
@@ -117,12 +131,12 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         assert.equal(definition.scripts.lint, 'eslint . --max-warnings=0');
         assert.match(definition.scripts.build, /npm run check/);
         assert.match(definition.scripts.check, /npm test/);
-        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.9.1');
-        assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.6.0');
+        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.10.0');
+        assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.7.0');
         assert.doesNotMatch(JSON.stringify(definition), /file:/);
         assert.match(eslintConfig, /eslint-plugin-vue/);
         assert(tsconfig.include.includes('tests/**/*.ts'));
-        assert.match(workflow, /@theme-cli-v0\.9\.1/);
+        assert.match(workflow, /@theme-cli-v0\.10\.0/);
         assert.doesNotMatch(workflow, /toolkit-version/);
         assert.doesNotMatch(workflow, /__TOOLKIT_VERSION__/);
         assert.match(gitignore, /node_modules\//);
@@ -181,8 +195,11 @@ test('keeps the bundled scaffold source aligned with the checked starter theme',
         'tsconfig.json',
         'resources/bopli/starter.json',
         'resources/js/templates/pages/Home.vue',
+        'resources/js/templates/pages/Home.bopli.ts',
         'resources/js/templates/pages/Page.vue',
+        'resources/js/templates/pages/Page.bopli.ts',
         'resources/js/templates/entries/Entry.vue',
+        'resources/js/templates/entries/Entry.bopli.ts',
     ];
 
     for (const path of paths) {
@@ -237,7 +254,7 @@ test('generates settings, field, and pre-bound template prop types from theme me
         assert.match(declarations, /enabled: boolean;/);
         assert.match(
             declarations,
-            /export type HomeProps = BopliPageProps<Record<string, unknown>, ThemeSettings>;/,
+            /export type HomeProps = BopliPageProps<HomeFields, ThemeSettings>;/,
         );
         assert.match(declarations, /body: string;/);
         assert.match(declarations, /titleCopy\?: string \| null;/);
@@ -548,7 +565,7 @@ test('rejects obsolete Page slots and invalid theme setting defaults', async () 
             slots: { posts: { name: 'Posts' } },
         });
 
-        await assert.rejects(inspectTheme(root), /may not declare slots/);
+        await assert.rejects(inspectTheme(root), /unsupported option \[slots\]/);
     });
 
     await withStarterTheme(async (root) => {
@@ -595,8 +612,8 @@ test('rejects Entry contracts that shadow Bopli metadata', async () => {
         await assert.rejects(inspectTheme(root), (error: unknown) => {
             assert(error instanceof ThemeValidationError);
             assert.equal(error.code, 'BOPLI_E013');
-            assert.equal(error.file, 'resources/js/templates/entries/Entry.vue');
-            assert.match(error.message, /resources\/js\/templates\/entries\/Entry\.vue/);
+            assert.equal(error.file, 'resources/js/templates/entries/Entry.bopli.ts');
+            assert.match(error.message, /resources\/js\/templates\/entries\/Entry\.bopli\.ts/);
             return true;
         });
     });
@@ -609,8 +626,8 @@ test('reports a coded location when an Entry template omits fields', async () =>
         await assert.rejects(inspectTheme(root), (error: unknown) => {
             assert(error instanceof ThemeValidationError);
             assert.equal(error.code, 'BOPLI_E012');
-            assert.equal(error.file, 'resources/js/templates/entries/Entry.vue');
-            assert.equal(error.line, 1);
+            assert.equal(error.file, 'resources/js/templates/entries/Entry.bopli.ts');
+            assert.equal(error.line, 3);
             return true;
         });
     });
@@ -623,7 +640,7 @@ test('rejects invalid Entry field metadata before type generation', async () => 
             fields: { body: { name: 'Body', type: 'markdown' } },
         });
 
-        await assert.rejects(inspectTheme(root), /field \[body\] has an unsupported type/);
+        await assert.rejects(inspectTheme(root), /unsupported TypeScript expression/);
     });
 });
 
@@ -769,7 +786,7 @@ test('ignores privileged words in Vue templates, styles, strings, and comments',
     });
 });
 
-test('reads the real bopli block and ignores one inside an HTML comment', async () => {
+test('reads the typed companion and ignores obsolete metadata text inside an HTML comment', async () => {
     await withStarterTheme(async (root) => {
         const path = join(root, 'resources/js/templates/pages/Home.vue');
         const contents = await readFile(path, 'utf8');
@@ -863,7 +880,7 @@ test('rejects native template kinds in the wrong source directory', async () => 
             kind: 'blog_post',
         });
 
-        await assert.rejects(inspectTheme(root), /declares invalid kind \[blog_post\]/);
+        await assert.rejects(inspectTheme(root), /invalid kind \[blog_post\]/);
     });
 });
 
@@ -961,10 +978,58 @@ async function writeTemplate(
 ): Promise<void> {
     const templateRoot = join(root, 'resources/js/templates', directory);
     await mkdir(templateRoot, { recursive: true });
+    await writeFile(join(templateRoot, filename), '<template><main /></template>\n');
+
+    const kind = String(metadata.kind ?? (directory === 'pages' ? 'page' : 'entry'));
+    const helper = {
+        page: 'definePageTemplate',
+        entry: 'defineEntryTemplate',
+        blog_index: 'defineBlogIndexTemplate',
+        blog_post: 'defineBlogPostTemplate',
+    }[kind] ?? 'definePageTemplate';
+    const properties = [
+        metadata.name ? `  name: ${JSON.stringify(metadata.name)},` : null,
+        metadata.default === true ? '  default: true,' : null,
+        metadata.fields && typeof metadata.fields === 'object'
+            ? `  fields: ${authoringFields(metadata.fields as Record<string, unknown>)},`
+            : null,
+        metadata.slots ? `  slots: ${JSON.stringify(metadata.slots)},` : null,
+    ].filter(Boolean);
+    const companion = filename.replace(/\.vue$/, '.bopli.ts');
+
     await writeFile(
-        join(templateRoot, filename),
-        `<bopli lang="json">\n${JSON.stringify(metadata)}\n</bopli>\n<template><main /></template>\n`,
+        join(templateRoot, companion),
+        `import { ${helper}, field } from '@bopli/theme-sdk/authoring';\n\nexport default ${helper}({\n${properties.join('\n')}\n});\n`,
     );
+}
+
+function authoringFields(fields: Record<string, unknown>): string {
+    const declarations = Object.entries(fields).map(([handle, value]) => {
+        const fieldDefinition = value as Record<string, unknown>;
+        const helper = {
+            short_text: 'text',
+            long_text: 'longText',
+            rich_text: 'richText',
+            number: 'number',
+            boolean: 'boolean',
+            date_time: 'dateTime',
+            select: 'select',
+            slug: 'slug',
+            image: 'image',
+            json: 'json',
+            relationship: 'relationship',
+        }[String(fieldDefinition.type)] ?? String(fieldDefinition.type);
+        const options = {
+            ...(fieldDefinition.name ? { label: fieldDefinition.name } : {}),
+            ...(fieldDefinition.required === true ? { required: true } : {}),
+            ...(fieldDefinition.options ? { options: fieldDefinition.options } : {}),
+        };
+        const argument = Object.keys(options).length === 0 ? '' : JSON.stringify(options);
+
+        return `    ${JSON.stringify(handle)}: field.${helper}(${argument}),`;
+    });
+
+    return `{\n${declarations.join('\n')}\n  }`;
 }
 
 function comparePaths(left: string, right: string): number {

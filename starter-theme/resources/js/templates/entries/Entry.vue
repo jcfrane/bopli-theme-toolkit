@@ -1,13 +1,3 @@
-<bopli lang="json">
-{
-  "name": "Standard entry",
-  "default": true,
-  "fields": {
-    "body": { "name": "Body", "type": "long_text", "required": true }
-  }
-}
-</bopli>
-
 <script setup lang="ts">
 import type { EntryProps } from '../../.bopli/types';
 import ThemeLayout from '../../components/ThemeLayout.vue';

@@ -1,10 +1,3 @@
-<bopli lang="json">
-{
-  "name": "Standard page",
-  "default": true
-}
-</bopli>
-
 <script setup lang="ts">
 import type { PageProps } from '../../.bopli/types';
 import ThemeLayout from '../../components/ThemeLayout.vue';

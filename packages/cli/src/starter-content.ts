@@ -50,6 +50,72 @@ export function validateStarterPage(
     }
     assertPublicationStatus(value.status, `Starter page [${value.title}].status`);
     assertObject(value.data, `Starter page [${value.title}].data must be a JSON object.`);
+    validatePageData(value.title, value.data, template.fields ?? {});
+}
+
+function validatePageData(
+    title: string,
+    data: Record<string, unknown>,
+    fields: NonNullable<ThemeTemplates[string]['fields']>,
+): void {
+    for (const key of Object.keys(data)) {
+        if (!fields[key]) {
+            throw new Error(`Starter page [${title}] contains unknown field [${key}].`);
+        }
+    }
+    for (const [key, field] of Object.entries(fields)) {
+        const value = data[key];
+        if (field.required === true && isEmpty(value)) {
+            throw new Error(`Starter page [${title}] requires field [${key}].`);
+        }
+        if (value === undefined || value === null) continue;
+        validatePageFieldValue(title, key, value, field);
+    }
+}
+
+function validatePageFieldValue(
+    title: string,
+    key: string,
+    value: unknown,
+    field: NonNullable<ThemeTemplates[string]['fields']>[string],
+): void {
+    if (field.type === 'list') {
+        if (!Array.isArray(value)) {
+            throw new Error(`Starter page [${title}] field [${key}] must be a list.`);
+        }
+        const minimum = field.minItems ?? 0;
+        const maximum = field.maxItems ?? 20;
+        if (value.length < minimum || value.length > maximum) {
+            throw new Error(
+                `Starter page [${title}] field [${key}] must contain ${minimum}–${maximum} rows.`,
+            );
+        }
+        value.forEach((row, index) => {
+            assertObject(row, `Starter page [${title}] field [${key}.${index}] must be an object.`);
+            validatePageData(`${title}] field [${key}.${index}`, row, field.fields ?? {});
+        });
+        return;
+    }
+
+    const valid =
+        (['short_text', 'long_text', 'date_time', 'select'].includes(field.type) &&
+            typeof value === 'string') ||
+        (field.type === 'number' && typeof value === 'number' && Number.isFinite(value)) ||
+        (field.type === 'boolean' && typeof value === 'boolean') ||
+        (field.type === 'rich_text' && typeof value === 'object' && !Array.isArray(value)) ||
+        (field.type === 'image' && (value === null || typeof value === 'object'));
+    if (!valid) {
+        throw new Error(
+            `Starter page [${title}] field [${key}] does not match [${field.type}].`,
+        );
+    }
+    if (field.type === 'select' && !field.options?.includes(String(value))) {
+        throw new Error(`Starter page [${title}] field [${key}] must use a declared option.`);
+    }
+}
+
+function isEmpty(value: unknown): boolean {
+    return value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
 }
 
 function validatePagePath(value: unknown, title: string): asserts value is string {

@@ -23,12 +23,24 @@
     "home": {
       "name": "Home",
       "kind": "page",
-      "default": false
+      "default": false,
+      "fields": {
+        "body": {
+          "name": "Body",
+          "type": "long_text"
+        }
+      }
     },
     "page": {
       "name": "Standard page",
       "kind": "page",
-      "default": true
+      "default": true,
+      "fields": {
+        "body": {
+          "name": "Body",
+          "type": "long_text"
+        }
+      }
     },
     "entry": {
       "name": "Standard entry",
@@ -96,27 +108,27 @@
     }
   },
   "runtime": {
-    "entry": "./assets/theme-DcLuKduh.js",
-    "ssrEntry": "./assets/theme-ssr-RTilcHj9.js",
+    "entry": "./assets/theme-DYvWnFsX.js",
+    "ssrEntry": "./assets/theme-ssr-DNbbwI3Q.js",
     "styles": [
-      "./assets/style-D6BqXrt9.css"
+      "./assets/style-tm4b7Pc-.css"
     ]
   },
   "files": [
     {
-      "path": "assets/style-D6BqXrt9.css",
+      "path": "assets/style-tm4b7Pc-.css",
       "size": 420,
-      "sha256": "8e58b2154e233cf1d894d58b75137720dff5101c69efea2c45dd44a1885c92da"
+      "sha256": "b4ec7d688cd6f6443ead9ab8bb498afe2ae717c6f5cdde7ae9fa1924cda55f5e"
     },
     {
-      "path": "assets/theme-DcLuKduh.js",
-      "size": 63736,
-      "sha256": "71f2927ba373ea29fe90df814220127515792cb056975b073f7f19094ca0eb89"
+      "path": "assets/theme-DYvWnFsX.js",
+      "size": 63473,
+      "sha256": "5e7b0e63b9f23c500466947b001d8282cc49c36b973d96841da6f8b0f2fe7f17"
     },
     {
-      "path": "assets/theme-ssr-RTilcHj9.js",
-      "size": 77174,
-      "sha256": "b7d83e82d5f953759a4a36231285beafac972da0a0d28940b1ec7fee456eb1eb"
+      "path": "assets/theme-ssr-DNbbwI3Q.js",
+      "size": 76923,
+      "sha256": "5c3ce477893c4e1bf264341cea168bf175a06a9553f1785e24a9f6881280af4d"
     }
   ]
 }

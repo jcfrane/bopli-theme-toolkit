@@ -16,6 +16,11 @@ export type TemplateField = {
     name: string;
     type: ContentFieldType;
     required?: boolean;
+    helpText?: string;
+    options?: string[];
+    minItems?: number;
+    maxItems?: number;
+    fields?: Record<string, TemplateField>;
 };
 
 export type ThemeTemplate = {

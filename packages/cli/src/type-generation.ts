@@ -49,7 +49,11 @@ function templateDeclarations(handle: string, template: ThemeTemplate): string[]
 
     if (template.kind === 'page') {
         return [
-            `export type ${name}Props = BopliPageProps<Record<string, unknown>, ThemeSettings>;`,
+            `export type ${name}Fields = {`,
+            ...fieldProperties(template.fields ?? {}),
+            '};',
+            '',
+            `export type ${name}Props = BopliPageProps<${name}Fields, ThemeSettings>;`,
         ];
     }
 
@@ -63,10 +67,7 @@ function templateDeclarations(handle: string, template: ThemeTemplate): string[]
 
     return [
         `export type ${name}Fields = {`,
-        ...Object.entries(template.fields ?? {}).map(
-            ([field, definition]) =>
-                `    ${propertyName(field)}${definition.required === true ? '' : '?'}: ${fieldType(definition)}${definition.required === true || definition.type === 'image' ? '' : ' | null'};`,
-        ),
+        ...fieldProperties(template.fields ?? {}),
         '};',
         '',
         `export type ${name}Entry = BopliPublicEntry<${name}Fields> & {`,
@@ -103,6 +104,16 @@ function settingType(setting: ThemeSetting): string {
 
 /** Maps a template field declaration to its projected public TypeScript value. */
 function fieldType(field: TemplateField): string {
+    if (field.type === 'list') {
+        const children = Object.entries(field.fields ?? {})
+            .map(
+                ([handle, child]) =>
+                    `${propertyName(handle)}${child.required === true ? '' : '?'}: ${fieldType(child)}${child.required === true ? '' : ' | null'}`,
+            )
+            .join('; ');
+
+        return `Array<{ ${children}${children === '' ? '' : ';'} }>`;
+    }
     if (field.type === 'number') return 'number';
     if (field.type === 'boolean') return 'boolean';
     if (field.type === 'image') return 'BopliImage | null';
@@ -110,6 +121,14 @@ function fieldType(field: TemplateField): string {
     if (field.type === 'relationship') return 'BopliRelatedEntry[]';
 
     return 'string';
+}
+
+/** Produces typed object properties for Page and Entry field contracts. */
+function fieldProperties(fields: Record<string, TemplateField>): string[] {
+    return Object.entries(fields).map(
+        ([handle, definition]) =>
+            `    ${propertyName(handle)}${definition.required === true ? '' : '?'}: ${fieldType(definition)}${definition.required === true || definition.type === 'image' ? '' : ' | null'};`,
+    );
 }
 
 /** Converts a stable theme handle into a legal PascalCase type prefix. */

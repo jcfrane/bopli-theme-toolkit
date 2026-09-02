@@ -1,9 +1,3 @@
-<bopli lang="json">
-{
-  "name": "Home"
-}
-</bopli>
-
 <script setup lang="ts">
 import type { HomeProps } from '../../.bopli/types';
 import ThemeLayout from '../../components/ThemeLayout.vue';

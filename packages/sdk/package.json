@@ -1,6 +1,6 @@
 {
     "name": "@bopli/theme-sdk",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "description": "Public TypeScript contracts and Vue helpers for Bopli themes.",
     "type": "module",
     "license": "MIT",
@@ -23,6 +23,10 @@
         ".": {
             "types": "./dist/index.d.ts",
             "default": "./dist/index.js"
+        },
+        "./authoring": {
+            "types": "./dist/authoring.d.ts",
+            "default": "./dist/authoring.js"
         }
     },
     "main": "dist/index.js",

@@ -24,6 +24,11 @@ import {
     useBopliColorMode,
     useBopliQuery,
 } from '../src/index.js';
+import {
+    defineEntryTemplate,
+    definePageTemplate,
+    field,
+} from '../src/authoring.js';
 
 type ExampleSettings = {
     accent_color: string;
@@ -64,6 +69,14 @@ if (false) {
     const reverseThemeModule: BopliThemeModule = expectedThemeModule;
     const reverseServerModule: BopliThemeServerModule = expectedServerModule;
     const summary = null as unknown as BopliBlogPostSummary;
+    const pageTemplate = definePageTemplate({
+        fields: {
+            skills: field.list({ label: field.text({ required: true }) }),
+        },
+    });
+    const entryTemplate = defineEntryTemplate({
+        fields: { body: field.richText({ required: true }) },
+    });
 
     page.settings.accent_color.toUpperCase();
     entry.settings.show_theme_toggle.valueOf();
@@ -77,6 +90,21 @@ if (false) {
     reverseServerModule.runtimeApiVersion;
     summary.readingTimeMinutes.toFixed();
     summary.coverImage?.url;
+    pageTemplate.fields.skills.fields.label.type;
+    entryTemplate.fields.body.required;
+
+    definePageTemplate({
+        fields: {
+            // @ts-expect-error Page templates intentionally reject arbitrary JSON fields.
+            metadata: field.json(),
+        },
+    });
+    definePageTemplate({
+        fields: {
+            // @ts-expect-error Ordered Page lists intentionally reject nested rich text.
+            sections: field.list({ body: field.richText() }),
+        },
+    });
 
     // @ts-expect-error Generated entry fields must reject misspelled properties.
     entry.entry.summmary;

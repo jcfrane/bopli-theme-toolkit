@@ -1,6 +1,6 @@
 {
     "name": "@bopli/theme-protocol",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Machine-readable protocol-v1 schemas and validators for Bopli themes.",
     "type": "module",
     "license": "MIT",

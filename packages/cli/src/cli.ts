@@ -2,6 +2,7 @@ import { realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { buildTheme } from './build-theme.js';
+import { addPageTemplate } from './add-template.js';
 import { createTheme } from './create-theme.js';
 import { inspectTheme } from './inspect-theme.js';
 import { packageTheme } from './package-theme.js';
@@ -20,6 +21,7 @@ export {
     developmentRegistrationArguments,
     generateThemeTypes,
     createTheme,
+    addPageTemplate,
 };
 export { ThemeValidationError } from './validation-error.js';
 
@@ -60,6 +62,22 @@ export async function run(argv: string[]): Promise<void> {
         return;
     }
 
+    if (command === 'add') {
+        const kind = positionals[1];
+        const handle = positionals[2];
+        const sourceArgument = positionals[3] ?? '.';
+
+        if (kind !== 'page' || !handle || positionals.length > 4) {
+            throw new Error('Usage: bopli-theme add page <handle> [theme-path]');
+        }
+
+        const added = await addPageTemplate(handle, sourceArgument);
+        process.stdout.write(
+            `Added Page template [${added.handle}].\n  ${added.source}\n  ${added.companion}\n`,
+        );
+        return;
+    }
+
     if (
         command !== 'validate' &&
         command !== 'types' &&
@@ -68,7 +86,7 @@ export async function run(argv: string[]): Promise<void> {
         command !== 'dev'
     ) {
         throw new Error(
-            'Usage: bopli-theme <create|validate|types|build|package|dev> [theme-path] [--out-dir dist] [--port 5174] [--standalone] [--app ../bopli-app] [--docker-service php]',
+            'Usage: bopli-theme <create|add|validate|types|build|package|dev> [theme-path] [--out-dir dist] [--port 5174] [--standalone] [--app ../bopli-app] [--docker-service php]',
         );
     }
     if (positionals.length > 2) {

@@ -21,7 +21,11 @@ export const VUE_PATH = resolve(
     dirname(fileURLToPath(import.meta.resolve('vue'))),
     'dist/vue.runtime.esm-bundler.js',
 );
-export const PLATFORM_IMPORTS = new Set(['vue', '@bopli/theme-sdk']);
+export const PLATFORM_IMPORTS = new Set([
+    'vue',
+    '@bopli/theme-sdk',
+    '@bopli/theme-sdk/authoring',
+]);
 export const PRIVILEGED_GLOBAL_DEFINES = {
     process: 'undefined',
     global: 'undefined',

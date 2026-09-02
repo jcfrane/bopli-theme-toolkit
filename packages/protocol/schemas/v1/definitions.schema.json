@@ -25,6 +25,19 @@
                 "relationship"
             ]
         },
+        "pageFieldType": {
+            "enum": [
+                "short_text",
+                "long_text",
+                "rich_text",
+                "number",
+                "boolean",
+                "date_time",
+                "select",
+                "image",
+                "list"
+            ]
+        },
         "templateKind": {
             "enum": ["page", "entry", "blog_index", "blog_post"]
         },
@@ -51,12 +64,57 @@
             "required": ["name", "type"],
             "properties": {
                 "name": { "type": "string", "minLength": 1, "maxLength": 255 },
-                "type": { "$ref": "#/$defs/contentFieldType" },
-                "required": { "type": "boolean" }
-            }
+                "type": {
+                    "enum": [
+                        "short_text",
+                        "long_text",
+                        "rich_text",
+                        "number",
+                        "boolean",
+                        "date_time",
+                        "select",
+                        "slug",
+                        "image",
+                        "json",
+                        "relationship",
+                        "list"
+                    ]
+                },
+                "required": { "type": "boolean" },
+                "helpText": { "type": "string", "maxLength": 1000 },
+                "options": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "uniqueItems": true,
+                    "items": { "type": "string", "minLength": 1, "maxLength": 100 }
+                },
+                "minItems": { "type": "integer", "minimum": 0, "maximum": 50 },
+                "maxItems": { "type": "integer", "minimum": 1, "maximum": 50 },
+                "fields": { "$ref": "#/$defs/templateFields" }
+            },
+            "allOf": [
+                {
+                    "if": { "properties": { "type": { "const": "select" } }, "required": ["type"] },
+                    "then": { "properties": { "options": true }, "required": ["options"] },
+                    "else": { "properties": { "options": false } }
+                },
+                {
+                    "if": { "properties": { "type": { "const": "list" } }, "required": ["type"] },
+                    "then": { "properties": { "fields": true }, "required": ["fields"] },
+                    "else": {
+                        "properties": {
+                            "fields": false,
+                            "minItems": false,
+                            "maxItems": false
+                        }
+                    }
+                }
+            ]
         },
         "templateFields": {
             "type": "object",
+            "maxProperties": 30,
             "propertyNames": { "$ref": "#/$defs/handle" },
             "additionalProperties": { "$ref": "#/$defs/templateField" }
         },

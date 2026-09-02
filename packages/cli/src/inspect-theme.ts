@@ -1,18 +1,13 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import {
-    assertTemplateMetadata,
-    assertThemePackageMetadata,
-    THEME_SETTING_TYPES,
-} from '@bopli/theme-protocol';
+import { assertThemePackageMetadata, THEME_SETTING_TYPES } from '@bopli/theme-protocol';
 import { parse as parseSfc } from '@vue/compiler-sfc';
 import semver from 'semver';
-import { CONTENT_FIELD_TYPES, RESERVED_ENTRY_FIELDS } from './constants.js';
 import { assertNoSymlinks, validateImports } from './source-validation.js';
 import { readStarterRecipe } from './starter-recipe.js';
+import { readTemplateAuthoring } from './template-authoring.js';
 import type {
     JsonObject,
-    TemplateField,
     TemplateKind,
     ThemeDefinition,
     ThemeSetting,
@@ -134,6 +129,12 @@ async function discoverTemplates(root: string): Promise<ThemeTemplates> {
 
         for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
             if (isIgnorableTemplateEntry(entry.name)) continue;
+            if (entry.isFile() && entry.name.endsWith('.bopli.ts')) {
+                const templateName = entry.name.slice(0, -9) + '.vue';
+                if (entries.some((candidate) => candidate.isFile() && candidate.name === templateName)) {
+                    continue;
+                }
+            }
             if (!entry.isFile() || extname(entry.name) !== '.vue') {
                 throw new ThemeValidationError({
                     code: 'BOPLI_E004',
@@ -171,7 +172,7 @@ async function assertNoLegacyTemplateDirectories(root: string): Promise<void> {
         try {
             if ((await stat(path)).isDirectory()) {
                 throw new Error(
-                    `Legacy template directory [${directory}] is not supported. Put native Blog templates in [pages] or [entries] and declare their kind in the <bopli> block.`,
+                    `Legacy template directory [${directory}] is not supported. Put native Blog templates in [pages] or [entries] and use the matching typed authoring helper.`,
                 );
             }
         } catch (error) {
@@ -190,159 +191,33 @@ async function inspectTemplate(
 ): Promise<ThemeTemplate> {
     const sourceFile = `resources/js/templates/${directory}/${filename}`;
     const contents = await readFile(join(templateRoot, filename), 'utf8');
-    const parsedMetadata = parseMetadata(contents, sourceFile);
-    const metadata = parsedMetadata.value;
-    const kind = templateKind(metadata.kind, inferredKind, directory, filename);
-    const fields =
-        metadata.fields === undefined
-            ? undefined
-            : templateFields(metadata.fields, directory, filename);
-    if (metadata.slots !== undefined) {
-        throw new Error(`Template [${directory}/${filename}] may not declare slots.`);
-    }
-
-    if (kind === 'entry' && (!fields || Object.keys(fields).length === 0)) {
-        throw new ThemeValidationError({
-            code: 'BOPLI_E012',
-            file: sourceFile,
-            line: parsedMetadata.line,
-            message: 'Entry templates must declare at least one field.',
-            remediation: 'Add a non-empty fields object to the template <bopli> block.',
-        });
-    }
-    if (kind === 'entry') {
-        const reservedField = Object.keys(fields ?? {}).find((field) =>
-            RESERVED_ENTRY_FIELDS.has(field),
-        );
-        if (reservedField) {
-            throw new ThemeValidationError({
-                code: 'BOPLI_E013',
-                file: sourceFile,
-                line: parsedMetadata.line,
-                message: `Entry template redeclares reserved field [${reservedField}].`,
-                remediation:
-                    'Rename the field to a theme-owned projection key that does not collide with Bopli metadata.',
-            });
-        }
-    }
-    if (kind === 'page' && fields) {
-        throw new Error(`Page template [${directory}/${filename}] may not declare fields.`);
-    }
-    if ((kind === 'blog_index' || kind === 'blog_post') && fields) {
-        throw new Error(`Native Blog template [${directory}/${filename}] may not declare fields.`);
-    }
-    assertTemplateMetadata(metadata, `Template [${directory}/${filename}] metadata`);
-
-    return {
-        name: typeof metadata.name === 'string' ? metadata.name : headline(handle),
-        kind,
-        default: metadata.default === true,
-        ...(kind === 'entry' ? { fields: fields ?? {} } : {}),
-        source: `/resources/js/templates/${directory}/${filename}`,
-    };
-}
-
-function templateKind(
-    value: unknown,
-    inferredKind: TemplateKind,
-    directory: string,
-    filename: string,
-): TemplateKind {
-    if (value === undefined) return inferredKind;
-
-    const allowedKinds: Record<string, TemplateKind[]> = {
-        pages: ['page', 'blog_index'],
-        entries: ['entry', 'blog_post'],
-    };
-    const allowed = allowedKinds[directory] ?? [];
-    if (typeof value !== 'string' || !allowed.includes(value as TemplateKind)) {
-        throw new Error(
-            `Template [${directory}/${filename}] declares invalid kind [${String(value)}].`,
-        );
-    }
-
-    return value as TemplateKind;
-}
-
-function parseMetadata(contents: string, file: string): { value: JsonObject; line: number } {
-    const parsed = parseSfc(contents, { filename: file });
+    const parsed = parseSfc(contents, { filename: sourceFile });
     const parseError = parsed.errors[0];
     if (parseError) {
         throw new ThemeValidationError({
             code: 'BOPLI_E010',
-            file,
+            file: sourceFile,
             message: `Vue could not parse this single-file component: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
             remediation: 'Fix the reported Vue syntax before validating the template again.',
             cause: parseError,
         });
     }
     const block = parsed.descriptor.customBlocks.find((candidate) => candidate.type === 'bopli');
-    if (!block) return { value: {}, line: 1 };
-
-    try {
-        const metadata = JSON.parse(block.content) as unknown;
-        assertObject(metadata, 'Template metadata must be a JSON object.');
-        return { value: metadata, line: block.loc.start.line };
-    } catch (cause) {
+    if (block) {
         throw new ThemeValidationError({
             code: 'BOPLI_E010',
-            file,
+            file: sourceFile,
             line: block.loc.start.line,
-            message: 'The <bopli> block contains invalid JSON.',
-            remediation: 'Use one JSON object with quoted keys and no trailing commas.',
-            cause,
+            message: 'Inline <bopli> metadata is no longer supported.',
+            remediation: `Move template metadata into [${filename.slice(0, -4)}.bopli.ts] using the typed authoring helpers.`,
         });
     }
+
+    return readTemplateAuthoring(templateRoot, directory, filename, inferredKind, handle);
 }
 
 function isIgnorableTemplateEntry(name: string): boolean {
     return name.startsWith('.') || name === 'Thumbs.db' || name.endsWith('.swp');
-}
-
-function templateFields(
-    value: unknown,
-    directory: string,
-    filename: string,
-): Record<string, TemplateField> {
-    assertObject(value, `Template [${directory}/${filename}] fields must be a JSON object.`);
-
-    return Object.fromEntries(
-        Object.entries(value).map(([handle, definition]) => {
-            assertObject(
-                definition,
-                `Template [${directory}/${filename}] field [${handle}] must be a JSON object.`,
-            );
-            const unknownKey = Object.keys(definition).find(
-                (key) => !['name', 'type', 'required'].includes(key),
-            );
-            if (unknownKey) {
-                throw new Error(
-                    `Template [${directory}/${filename}] field [${handle}] contains unsupported key [${unknownKey}].`,
-                );
-            }
-            if (
-                typeof definition.name !== 'string' ||
-                definition.name.length === 0 ||
-                definition.name.length > 255
-            ) {
-                throw new Error(
-                    `Template [${directory}/${filename}] field [${handle}] must declare a name.`,
-                );
-            }
-            if (typeof definition.type !== 'string' || !CONTENT_FIELD_TYPES.has(definition.type)) {
-                throw new Error(
-                    `Template [${directory}/${filename}] field [${handle}] has an unsupported type.`,
-                );
-            }
-            if (definition.required !== undefined && typeof definition.required !== 'boolean') {
-                throw new Error(
-                    `Template [${directory}/${filename}] field [${handle}] has an invalid required flag.`,
-                );
-            }
-
-            return [handle, definition as TemplateField];
-        }),
-    );
 }
 
 function assertTemplateDefaults(templates: ThemeTemplates): void {
