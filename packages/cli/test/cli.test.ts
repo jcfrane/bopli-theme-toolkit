@@ -131,12 +131,12 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         assert.equal(definition.scripts.lint, 'eslint . --max-warnings=0');
         assert.match(definition.scripts.build, /npm run check/);
         assert.match(definition.scripts.check, /npm test/);
-        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.10.0');
+        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.10.1');
         assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.7.0');
         assert.doesNotMatch(JSON.stringify(definition), /file:/);
         assert.match(eslintConfig, /eslint-plugin-vue/);
         assert(tsconfig.include.includes('tests/**/*.ts'));
-        assert.match(workflow, /@theme-cli-v0\.10\.0/);
+        assert.match(workflow, /@theme-cli-v0\.10\.1/);
         assert.doesNotMatch(workflow, /toolkit-version/);
         assert.doesNotMatch(workflow, /__TOOLKIT_VERSION__/);
         assert.match(gitignore, /node_modules\//);

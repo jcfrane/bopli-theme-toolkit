@@ -33,6 +33,8 @@ jobs:
             .bopli-toolkit/package-lock.json
       - run: npm ci --prefix .bopli-toolkit
       - run: npm test --prefix .bopli-toolkit
+      - name: Remove toolkit checkout before theme checks
+        run: rm -rf .bopli-toolkit
       - name: Install pinned theme dependencies
         run: npm ci
       - run: npm run validate
