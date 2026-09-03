@@ -1,6 +1,15 @@
 <script setup lang="ts">
+import { defineEntryTemplate, field } from '@bopli/theme-sdk/authoring';
 import type { EntryProps } from '../../.bopli/types';
 import ThemeLayout from '../../components/ThemeLayout.vue';
+
+defineEntryTemplate({
+  name: 'Standard entry',
+  default: true,
+  fields: {
+    body: field.longText({ required: true }),
+  },
+});
 
 defineProps<EntryProps>();
 </script>

@@ -246,6 +246,19 @@ async function validateImportReference(
     line: number,
     dependencies: Set<string>,
 ): Promise<void> {
+    if (
+        specifier === '@bopli/theme-sdk/authoring' &&
+        !/^resources\/js\/templates\/(?:pages|entries)\/[^/]+\.vue$/.test(displayFile)
+    ) {
+        throw new ThemeValidationError({
+            code: 'BOPLI_E020',
+            file: displayFile,
+            line,
+            message: 'Template authoring helpers may be imported only by top-level Vue templates.',
+            remediation:
+                'Move the compile-time declaration into a template under resources/js/templates/pages or entries.',
+        });
+    }
     if (PLATFORM_IMPORTS.has(specifier)) return;
 
     if (specifier.startsWith('.')) {

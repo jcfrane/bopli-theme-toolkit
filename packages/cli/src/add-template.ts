@@ -5,10 +5,9 @@ import { headline, isFileSystemError } from './utilities.js';
 export type AddedTemplate = {
     handle: string;
     source: string;
-    companion: string;
 };
 
-/** Adds a paired Vue Page template and typed authoring companion to an existing theme. */
+/** Adds a Vue Page template with an inline compile-time authoring declaration. */
 export async function addPageTemplate(
     handle: string,
     themeRoot = process.cwd(),
@@ -26,14 +25,12 @@ export async function addPageTemplate(
     const root = resolve(themeRoot);
     const directory = join(root, 'resources/js/templates/pages');
     const source = join(directory, `${name}.vue`);
-    const companion = join(directory, `${name}.bopli.ts`);
 
-    await Promise.all([assertMissing(source), assertMissing(companion)]);
+    await assertMissing(source);
     await mkdir(directory, { recursive: true });
-    await writeFile(source, pageSource(name));
-    await writeFile(companion, pageCompanion(headline(handle)));
+    await writeFile(source, pageSource(name, headline(handle)));
 
-    return { handle, source, companion };
+    return { handle, source };
 }
 
 /** Ensures scaffolding never overwrites an existing developer-owned file. */
@@ -49,9 +46,17 @@ async function assertMissing(path: string): Promise<void> {
 }
 
 /** Produces the minimal runtime Vue template paired with generated props. */
-function pageSource(name: string): string {
+function pageSource(name: string, label: string): string {
     return `<script setup lang="ts">
+import { definePageTemplate, field } from '@bopli/theme-sdk/authoring';
 import type { ${name}Props } from '../../.bopli/types';
+
+definePageTemplate({
+  name: ${JSON.stringify(label)},
+  fields: {
+    body: field.longText(),
+  },
+});
 
 defineProps<${name}Props>();
 </script>
@@ -62,18 +67,5 @@ defineProps<${name}Props>();
     <p v-if="page.fields.body">{{ page.fields.body }}</p>
   </main>
 </template>
-`;
-}
-
-/** Produces the discoverable typed companion developers customize with autocomplete. */
-function pageCompanion(name: string): string {
-    return `import { definePageTemplate, field } from '@bopli/theme-sdk/authoring';
-
-export default definePageTemplate({
-  name: ${JSON.stringify(name)},
-  fields: {
-    body: field.longText(),
-  },
-});
 `;
 }

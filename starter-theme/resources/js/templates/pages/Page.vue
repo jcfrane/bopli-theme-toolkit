@@ -1,6 +1,15 @@
 <script setup lang="ts">
+import { definePageTemplate, field } from '@bopli/theme-sdk/authoring';
 import type { PageProps } from '../../.bopli/types';
 import ThemeLayout from '../../components/ThemeLayout.vue';
+
+definePageTemplate({
+  name: 'Standard page',
+  default: true,
+  fields: {
+    body: field.longText(),
+  },
+});
 
 defineProps<PageProps>();
 </script>

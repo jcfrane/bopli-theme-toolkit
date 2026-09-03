@@ -15,6 +15,7 @@ import { descriptorFor } from './descriptor.js';
 import { previewHarnessPlugin } from './preview-harness.js';
 import { runtimePlugin } from './runtime.js';
 import { importBoundaryPlugin } from './source-validation.js';
+import { templateAuthoringPlugin } from './template-authoring-plugin.js';
 import type { CliOptions, ThemeDefinition, ThemeDescriptor, ThemeFile } from './types.js';
 
 export async function serveTheme(theme: ThemeDefinition, options: CliOptions): Promise<void> {
@@ -44,6 +45,7 @@ export async function serveTheme(theme: ThemeDefinition, options: CliOptions): P
                 ? [developmentServerArtifactPlugin(serverArtifact.contents)]
                 : []),
             ...(standalone ? [previewHarnessPlugin(theme)] : []),
+            templateAuthoringPlugin(theme),
             vue(),
         ],
         resolve: { alias: { '@bopli/theme-sdk': SDK_PATH, vue: VUE_PATH } },

@@ -12,6 +12,7 @@ import {
 import { descriptorFor } from './descriptor.js';
 import { runtimePlugin, runtimeSource, serverRuntimeSource } from './runtime.js';
 import { assertCompiledModuleIsSafe, importBoundaryPlugin } from './source-validation.js';
+import { templateAuthoringPlugin } from './template-authoring-plugin.js';
 import { generateThemeTypes } from './type-generation.js';
 import type { ThemeDefinition, ThemeFile } from './types.js';
 import { sha256 } from './utilities.js';
@@ -29,7 +30,12 @@ export async function buildTheme(theme: ThemeDefinition, output: string): Promis
             root: theme.root,
             configFile: false,
             define: PRIVILEGED_GLOBAL_DEFINES,
-            plugins: [importBoundaryPlugin(theme), runtimePlugin(theme), vue()],
+            plugins: [
+                importBoundaryPlugin(theme),
+                runtimePlugin(theme),
+                templateAuthoringPlugin(theme),
+                vue(),
+            ],
             resolve: {
                 alias: [
                     { find: /^@bopli\/theme-sdk$/, replacement: SDK_PATH },
@@ -130,7 +136,7 @@ async function compileServerRuntime(
             root: theme.root,
             configFile: false,
             define: PRIVILEGED_GLOBAL_DEFINES,
-            plugins: [importBoundaryPlugin(theme), vue()],
+            plugins: [importBoundaryPlugin(theme), templateAuthoringPlugin(theme), vue()],
             resolve: {
                 alias: [
                     { find: /^@bopli\/theme-sdk$/, replacement: SDK_PATH },

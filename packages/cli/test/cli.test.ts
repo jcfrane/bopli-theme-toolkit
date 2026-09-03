@@ -21,15 +21,14 @@ import { previewHarnessHtml, previewHarnessSource } from '../dist/preview-harnes
 
 const TOOLKIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
-test('adds a paired typed Page template without requiring manifest memorization', async () => {
+test('adds a Page template with inline typed authoring without requiring manifest memorization', async () => {
     await withStarterTheme(async (root) => {
         const added = await addPageTemplate('about-us', root);
         const source = await readFile(added.source, 'utf8');
-        const companion = await readFile(added.companion, 'utf8');
 
         assert.match(source, /AboutUsProps/);
-        assert.match(companion, /definePageTemplate/);
-        assert.match(companion, /body: field\.longText\(\)/);
+        assert.match(source, /definePageTemplate/);
+        assert.match(source, /body: field\.longText\(\)/);
         await assert.rejects(addPageTemplate('about-us', root), /already exists/);
     });
 });
@@ -131,12 +130,12 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         assert.equal(definition.scripts.lint, 'eslint . --max-warnings=0');
         assert.match(definition.scripts.build, /npm run check/);
         assert.match(definition.scripts.check, /npm test/);
-        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.10.1');
+        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.11.0');
         assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.7.0');
         assert.doesNotMatch(JSON.stringify(definition), /file:/);
         assert.match(eslintConfig, /eslint-plugin-vue/);
         assert(tsconfig.include.includes('tests/**/*.ts'));
-        assert.match(workflow, /@theme-cli-v0\.10\.1/);
+        assert.match(workflow, /@theme-cli-v0\.11\.0/);
         assert.doesNotMatch(workflow, /toolkit-version/);
         assert.doesNotMatch(workflow, /__TOOLKIT_VERSION__/);
         assert.match(gitignore, /node_modules\//);
@@ -195,11 +194,8 @@ test('keeps the bundled scaffold source aligned with the checked starter theme',
         'tsconfig.json',
         'resources/bopli/starter.json',
         'resources/js/templates/pages/Home.vue',
-        'resources/js/templates/pages/Home.bopli.ts',
         'resources/js/templates/pages/Page.vue',
-        'resources/js/templates/pages/Page.bopli.ts',
         'resources/js/templates/entries/Entry.vue',
-        'resources/js/templates/entries/Entry.bopli.ts',
     ];
 
     for (const path of paths) {
@@ -342,6 +338,10 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
             'utf8',
         );
         assert.doesNotMatch(browserSource, /from["']vue(?:\/[^"']*)?["']/);
+        assert.doesNotMatch(
+            browserSource,
+            /define(?:Page|Entry)Template|@bopli\/theme-sdk\/authoring|Standard (?:page|entry)/,
+        );
         const browserModule = (await import(
             `data:text/javascript;charset=utf-8,${encodeURIComponent(browserSource)}`
         )) as { runtimeApiVersion: number; mount: unknown };
@@ -353,6 +353,10 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
             'utf8',
         );
         assert.doesNotMatch(serverSource, /(?:createRequire|from["']node:)/);
+        assert.doesNotMatch(
+            serverSource,
+            /define(?:Page|Entry)Template|@bopli\/theme-sdk\/authoring|Standard (?:page|entry)/,
+        );
         const serverModule = (await import(
             `data:text/javascript;charset=utf-8,${encodeURIComponent(serverSource)}`
         )) as {
@@ -550,6 +554,10 @@ test('serves a declared preview from the local theme watch release', async () =>
         assert.equal(descriptor.runtime.entry, './__bopli/theme-entry.js');
         assert.equal(descriptor.runtime.ssrEntry, './__bopli/theme-ssr.js');
         assert.equal(Buffer.byteLength(artifact.contents), artifact.file.size);
+        assert.doesNotMatch(
+            artifact.contents,
+            /define(?:Page|Entry)Template|@bopli\/theme-sdk\/authoring|Standard (?:page|entry)/,
+        );
         assert.equal(
             descriptor.files.find((file) => file.path === '__bopli/theme-ssr.js')?.sha256,
             artifact.file.sha256,
@@ -612,8 +620,8 @@ test('rejects Entry contracts that shadow Bopli metadata', async () => {
         await assert.rejects(inspectTheme(root), (error: unknown) => {
             assert(error instanceof ThemeValidationError);
             assert.equal(error.code, 'BOPLI_E013');
-            assert.equal(error.file, 'resources/js/templates/entries/Entry.bopli.ts');
-            assert.match(error.message, /resources\/js\/templates\/entries\/Entry\.bopli\.ts/);
+            assert.equal(error.file, 'resources/js/templates/entries/Entry.vue');
+            assert.match(error.message, /resources\/js\/templates\/entries\/Entry\.vue/);
             return true;
         });
     });
@@ -626,8 +634,8 @@ test('reports a coded location when an Entry template omits fields', async () =>
         await assert.rejects(inspectTheme(root), (error: unknown) => {
             assert(error instanceof ThemeValidationError);
             assert.equal(error.code, 'BOPLI_E012');
-            assert.equal(error.file, 'resources/js/templates/entries/Entry.bopli.ts');
-            assert.equal(error.line, 3);
+            assert.equal(error.file, 'resources/js/templates/entries/Entry.vue');
+            assert.equal(error.line, 4);
             return true;
         });
     });
@@ -641,6 +649,107 @@ test('rejects invalid Entry field metadata before type generation', async () => 
         });
 
         await assert.rejects(inspectTheme(root), /unsupported TypeScript expression/);
+    });
+});
+
+test('requires exactly one standalone top-level template declaration', async () => {
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/templates/pages/Home.vue');
+        const source = await readFile(path, 'utf8');
+        await writeFile(
+            path,
+            source.replace(
+                'defineProps<HomeProps>();',
+                'definePageTemplate({});\ndefineProps<HomeProps>();',
+            ),
+        );
+
+        await assert.rejects(inspectTheme(root), /exactly one top-level/);
+    });
+
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/templates/pages/Home.vue');
+        const source = await readFile(path, 'utf8');
+        await writeFile(
+            path,
+            source.replace(
+                /definePageTemplate\(\{[\s\S]*?\n\}\);/,
+                'const authoring = definePageTemplate({});',
+            ),
+        );
+
+        await assert.rejects(inspectTheme(root), /exactly one top-level/);
+    });
+
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/templates/pages/Home.vue');
+        const source = await readFile(path, 'utf8');
+        await writeFile(
+            path,
+            source
+                .replace("import { definePageTemplate, field } from '@bopli/theme-sdk/authoring';\n", '')
+                .replace(/definePageTemplate\(\{[\s\S]*?\n\}\);\n/, ''),
+        );
+
+        await assert.rejects(inspectTheme(root), /exactly one named import/);
+    });
+});
+
+test('rejects authoring bindings used by runtime code and obsolete companion files', async () => {
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/templates/pages/Home.vue');
+        const source = await readFile(path, 'utf8');
+        await writeFile(
+            path,
+            source.replace('defineProps<HomeProps>();', 'void field;\ndefineProps<HomeProps>();'),
+        );
+
+        await assert.rejects(inspectTheme(root), /only inside the top-level template declaration/);
+    });
+
+    await withStarterTheme(async (root) => {
+        await writeFile(
+            join(root, 'resources/js/templates/pages/Home.bopli.ts'),
+            'export default {};\n',
+        );
+
+        await assert.rejects(inspectTheme(root), (error: unknown) => {
+            assert(error instanceof ThemeValidationError);
+            assert.equal(error.code, 'BOPLI_E004');
+            assert.match(error.file, /Home\.bopli\.ts/);
+            return true;
+        });
+    });
+
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/components/runtime-authoring.ts');
+        await writeFile(
+            path,
+            "import { definePageTemplate } from '@bopli/theme-sdk/authoring';\nvoid definePageTemplate;\n",
+        );
+
+        await assert.rejects(inspectTheme(root), /only by top-level Vue templates/);
+    });
+});
+
+test('supports aliased authoring helpers inside the inline declaration', async () => {
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/templates/pages/Home.vue');
+        const source = await readFile(path, 'utf8');
+        await writeFile(
+            path,
+            source
+                .replace(
+                    'import { definePageTemplate, field }',
+                    'import { definePageTemplate as defineTemplate, field as contentField }',
+                )
+                .replace('definePageTemplate({', 'defineTemplate({')
+                .replaceAll('field.', 'contentField.'),
+        );
+
+        const theme = await inspectTheme(root);
+
+        assert.equal(theme.templates.home?.fields?.body?.type, 'long_text');
     });
 });
 
@@ -786,7 +895,7 @@ test('ignores privileged words in Vue templates, styles, strings, and comments',
     });
 });
 
-test('reads the typed companion and ignores obsolete metadata text inside an HTML comment', async () => {
+test('reads inline authoring and ignores obsolete metadata text inside an HTML comment', async () => {
     await withStarterTheme(async (root) => {
         const path = join(root, 'resources/js/templates/pages/Home.vue');
         const contents = await readFile(path, 'utf8');
@@ -978,7 +1087,6 @@ async function writeTemplate(
 ): Promise<void> {
     const templateRoot = join(root, 'resources/js/templates', directory);
     await mkdir(templateRoot, { recursive: true });
-    await writeFile(join(templateRoot, filename), '<template><main /></template>\n');
 
     const kind = String(metadata.kind ?? (directory === 'pages' ? 'page' : 'entry'));
     const helper = {
@@ -995,11 +1103,10 @@ async function writeTemplate(
             : null,
         metadata.slots ? `  slots: ${JSON.stringify(metadata.slots)},` : null,
     ].filter(Boolean);
-    const companion = filename.replace(/\.vue$/, '.bopli.ts');
 
     await writeFile(
-        join(templateRoot, companion),
-        `import { ${helper}, field } from '@bopli/theme-sdk/authoring';\n\nexport default ${helper}({\n${properties.join('\n')}\n});\n`,
+        join(templateRoot, filename),
+        `<script setup lang="ts">\nimport { ${helper}, field } from '@bopli/theme-sdk/authoring';\n\n${helper}({\n${properties.join('\n')}\n});\n</script>\n\n<template><main /></template>\n`,
     );
 }
 

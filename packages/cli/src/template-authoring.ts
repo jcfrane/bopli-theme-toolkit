@@ -1,6 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { babelParse } from '@vue/compiler-sfc';
+import { babelParse, parse as parseSfc } from '@vue/compiler-sfc';
 import { RESERVED_ENTRY_FIELDS } from './constants.js';
 import type {
     ContentFieldType,
@@ -10,10 +8,7 @@ import type {
     ThemeTemplate,
 } from './types.js';
 import { headline } from './utilities.js';
-import {
-    ThemeValidationError,
-    type ThemeValidationErrorCode,
-} from './validation-error.js';
+import { ThemeValidationError, type ThemeValidationErrorCode } from './validation-error.js';
 
 const AUTHORING_IMPORT = '@bopli/theme-sdk/authoring';
 const TEMPLATE_HELPERS: Record<string, TemplateKind> = {
@@ -58,53 +53,102 @@ const LIST_CHILD_TYPES = new Set([
 
 type AstNode = {
     type: string;
+    start?: number | null;
+    end?: number | null;
     loc?: { start: { line: number } } | null;
     [key: string]: unknown;
 };
 
 type AuthoringImports = {
-    field: string;
+    declaration: AstNode;
+    field: string | null;
+    importDeclaration: AstNode;
     templates: Map<string, TemplateKind>;
 };
 
-/** Reads one restricted TypeScript companion and returns its serializable template contract. */
-export async function readTemplateAuthoring(
-    templateRoot: string,
+type ParsedAuthoring = {
+    declaration: AstNode;
+    importDeclaration: AstNode;
+    scriptOffset: number;
+    template: ThemeTemplate;
+};
+
+/** Reads one compile-time declaration from a Vue template and returns its serializable contract. */
+export function readTemplateAuthoring(
+    source: string,
     directory: string,
     filename: string,
     inferredKind: TemplateKind,
     handle: string,
-): Promise<ThemeTemplate> {
-    const basename = filename.slice(0, -4);
-    const companion = `${basename}.bopli.ts`;
-    const sourceFile = `resources/js/templates/${directory}/${companion}`;
-    let source: string;
+): ThemeTemplate {
+    return parseTemplateAuthoring(source, directory, filename, inferredKind, handle).template;
+}
 
-    try {
-        source = await readFile(join(templateRoot, companion), 'utf8');
-    } catch (cause) {
+/** Removes compile-time authoring syntax from a Vue template before Vue compiles it. */
+export function stripTemplateAuthoring(
+    source: string,
+    directory: string,
+    filename: string,
+    inferredKind: TemplateKind,
+    handle: string,
+): string {
+    const parsed = parseTemplateAuthoring(source, directory, filename, inferredKind, handle);
+    const ranges = [parsed.importDeclaration, parsed.declaration]
+        .map((node) => {
+            if (typeof node.start !== 'number' || typeof node.end !== 'number') {
+                throw new Error('The TypeScript parser did not provide authoring source offsets.');
+            }
+
+            return [parsed.scriptOffset + node.start, parsed.scriptOffset + node.end] as const;
+        })
+        .sort((left, right) => right[0] - left[0]);
+    let stripped = source;
+
+    for (const [start, end] of ranges) {
+        const whitespace = stripped.slice(start, end).replace(/[^\r\n]/g, ' ');
+        stripped = `${stripped.slice(0, start)}${whitespace}${stripped.slice(end)}`;
+    }
+
+    return stripped;
+}
+
+function parseTemplateAuthoring(
+    source: string,
+    directory: string,
+    filename: string,
+    inferredKind: TemplateKind,
+    handle: string,
+): ParsedAuthoring {
+    const sourceFile = `resources/js/templates/${directory}/${filename}`;
+    const parsedSfc = parseSfc(source, { filename: sourceFile });
+    const parseError = parsedSfc.errors[0];
+    if (parseError) {
         throw validationError(
             sourceFile,
-            `Template [${directory}/${filename}] is missing its typed authoring companion.`,
-            `Add [${companion}] with a default definePageTemplate, defineEntryTemplate, or native Blog definition.`,
-            cause,
+            `Vue could not parse this single-file component: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            'Fix the reported Vue syntax before validating the template declaration.',
+            parseError,
+        );
+    }
+    const script = parsedSfc.descriptor.scriptSetup;
+    if (!script || script.lang !== 'ts') {
+        throw validationError(
+            sourceFile,
+            'Templates must declare their authoring contract inside <script setup lang="ts">.',
+            'Add one top-level definePageTemplate, defineEntryTemplate, or native Blog helper call to the TypeScript setup block.',
         );
     }
 
-    const program = parseProgram(source, sourceFile);
+    const program = parseProgram(script.content, sourceFile, script.loc.start.line - 1);
     const body = nodeList(program.program, 'body');
     const imports = readAuthoringImports(body, sourceFile);
-    const declaration = body.find((node) => node.type === 'ExportDefaultDeclaration');
-    if (!declaration || !isNode(declaration.declaration)) {
-        throw validationError(
-            sourceFile,
-            'Template companions must default-export one typed template definition.',
-            'Export one definePageTemplate, defineEntryTemplate, defineBlogIndexTemplate, or defineBlogPostTemplate call.',
-        );
-    }
-
-    const call = declaration.declaration;
-    if (call.type !== 'CallExpression' || !isNode(call.callee) || call.callee.type !== 'Identifier') {
+    const call = imports.declaration.expression;
+    if (!isNode(call)) throw invalidExpression(sourceFile, imports.declaration);
+    if (
+        call.type !== 'CallExpression' ||
+        !isNode(call.callee) ||
+        call.callee.type !== 'Identifier'
+    ) {
         throw invalidExpression(sourceFile, call);
     }
     const kind = imports.templates.get(String(call.callee.name));
@@ -113,8 +157,9 @@ export async function readTemplateAuthoring(
     }
     assertKindMatchesDirectory(kind, inferredKind, directory, filename, sourceFile, call);
 
-    const definitionNode = nodeList(call, 'arguments')[0];
-    if (!definitionNode || definitionNode.type !== 'ObjectExpression') {
+    const args = nodeList(call, 'arguments');
+    const definitionNode = args[0];
+    if (args.length !== 1 || !definitionNode || definitionNode.type !== 'ObjectExpression') {
         throw invalidExpression(sourceFile, call);
     }
     const definition = objectEntries(definitionNode, sourceFile);
@@ -133,9 +178,10 @@ export async function readTemplateAuthoring(
             'BOPLI_E012',
         );
     }
-    const reserved = kind === 'entry'
-        ? Object.keys(fields ?? {}).find((field) => RESERVED_ENTRY_FIELDS.has(field))
-        : undefined;
+    const reserved =
+        kind === 'entry'
+            ? Object.keys(fields ?? {}).find((field) => RESERVED_ENTRY_FIELDS.has(field))
+            : undefined;
     if (reserved) {
         throw validationError(
             sourceFile,
@@ -150,32 +196,40 @@ export async function readTemplateAuthoring(
         throw validationError(
             sourceFile,
             'Native Blog template definitions may not declare fields.',
-            'Remove fields from the native Blog companion.',
+            'Remove fields from the native Blog declaration.',
             undefined,
             definitionNode,
         );
     }
 
     return {
-        name: definition.name ? stringLiteral(definition.name, sourceFile) : headline(handle),
-        kind,
-        default: definition.default ? booleanLiteral(definition.default, sourceFile) : false,
-        ...(fields ? { fields } : {}),
-        source: `/resources/js/templates/${directory}/${filename}`,
+        declaration: imports.declaration,
+        importDeclaration: imports.importDeclaration,
+        scriptOffset: script.loc.start.offset,
+        template: {
+            name: definition.name ? stringLiteral(definition.name, sourceFile) : headline(handle),
+            kind,
+            default: definition.default ? booleanLiteral(definition.default, sourceFile) : false,
+            ...(fields ? { fields } : {}),
+            source: `/resources/js/templates/${directory}/${filename}`,
+        },
     };
 }
 
-function parseProgram(source: string, file: string): AstNode {
+function parseProgram(source: string, file: string, lineOffset: number): AstNode {
     try {
-        return babelParse(source, {
+        const program = babelParse(source, {
             sourceType: 'module',
             plugins: ['typescript'],
         }) as unknown as AstNode;
+        shiftNodeLines(program, lineOffset);
+
+        return program;
     } catch (cause) {
         throw validationError(
             file,
             `TypeScript parser error: ${cause instanceof Error ? cause.message : String(cause)}`,
-            'Fix the companion syntax and keep it to the documented authoring DSL.',
+            'Fix the Vue setup syntax and keep the template declaration to the documented authoring DSL.',
             cause,
         );
     }
@@ -183,50 +237,95 @@ function parseProgram(source: string, file: string): AstNode {
 
 function readAuthoringImports(body: AstNode[], file: string): AuthoringImports {
     const templates = new Map<string, TemplateKind>();
-    let fieldName = 'field';
-
-    for (const statement of body) {
-        if (statement.type === 'ExportDefaultDeclaration') continue;
-        if (statement.type !== 'ImportDeclaration' || !isNode(statement.source)) {
-            throw validationError(
-                file,
-                'Template companions may contain only one authoring import and one default export.',
-                `Import helpers from [${AUTHORING_IMPORT}] and remove executable statements.`,
-                undefined,
-                statement,
-            );
+    let fieldName: string | null = null;
+    const authoringImports = body.filter(
+        (statement) =>
+            statement.type === 'ImportDeclaration' &&
+            isNode(statement.source) &&
+            statement.source.value === AUTHORING_IMPORT,
+    );
+    if (authoringImports.length !== 1) {
+        throw validationError(
+            file,
+            `Templates must contain exactly one named import from [${AUTHORING_IMPORT}].`,
+            'Import one matching template helper and field when the declaration defines fields.',
+            undefined,
+            authoringImports[1] ?? authoringImports[0],
+        );
+    }
+    const importDeclaration = authoringImports[0] as AstNode;
+    for (const specifier of nodeList(importDeclaration, 'specifiers')) {
+        if (
+            specifier.type !== 'ImportSpecifier' ||
+            !isNode(specifier.imported) ||
+            !isNode(specifier.local)
+        ) {
+            throw invalidExpression(file, specifier);
         }
-        if (statement.source.value !== AUTHORING_IMPORT) {
-            throw validationError(
-                file,
-                `Template companions may import only [${AUTHORING_IMPORT}].`,
-                'Move runtime imports into the paired Vue template.',
-                undefined,
-                statement,
-            );
+        const imported = String(specifier.imported.name);
+        const local = String(specifier.local.name);
+        if (imported === 'field') {
+            fieldName = local;
+            continue;
         }
-        for (const specifier of nodeList(statement, 'specifiers')) {
-            if (specifier.type !== 'ImportSpecifier' || !isNode(specifier.imported) || !isNode(specifier.local)) {
-                throw invalidExpression(file, specifier);
-            }
-            const imported = String(specifier.imported.name);
-            const local = String(specifier.local.name);
-            if (imported === 'field') fieldName = local;
-            const kind = TEMPLATE_HELPERS[imported];
-            if (kind) templates.set(local, kind);
-        }
+        const kind = TEMPLATE_HELPERS[imported];
+        if (!kind) throw invalidExpression(file, specifier);
+        templates.set(local, kind);
+    }
+    if (templates.size !== 1) {
+        throw validationError(
+            file,
+            'A template must import exactly one template-definition helper.',
+            'Import only the helper matching this template and optionally field.',
+            undefined,
+            importDeclaration,
+        );
     }
 
-    return { field: fieldName, templates };
+    const declarations = body.filter(
+        (statement) =>
+            statement.type === 'ExpressionStatement' &&
+            isNode(statement.expression) &&
+            statement.expression.type === 'CallExpression' &&
+            isNode(statement.expression.callee) &&
+            statement.expression.callee.type === 'Identifier' &&
+            templates.has(String(statement.expression.callee.name)),
+    );
+    if (declarations.length !== 1) {
+        throw validationError(
+            file,
+            'Templates must contain exactly one top-level template-definition call.',
+            'Call the imported template helper once as a standalone statement inside <script setup lang="ts">.',
+            undefined,
+            declarations[1] ?? declarations[0] ?? importDeclaration,
+        );
+    }
+    const declaration = declarations[0] as AstNode;
+    const importedNames = new Set([...templates.keys(), ...(fieldName ? [fieldName] : [])]);
+    const outsideUse = body
+        .filter((statement) => statement !== importDeclaration && statement !== declaration)
+        .find((statement) => containsReferencedIdentifier(statement, importedNames));
+    if (outsideUse) {
+        throw validationError(
+            file,
+            'Authoring helpers may be used only inside the top-level template declaration.',
+            'Move runtime behavior to ordinary Vue code and keep authoring helpers exclusive to the declaration.',
+            undefined,
+            outsideUse,
+        );
+    }
+
+    return { declaration, field: fieldName, importDeclaration, templates };
 }
 
 function readFields(
     expression: AstNode,
-    fieldName: string,
+    fieldName: string | null,
     file: string,
     kind: TemplateKind,
     nested: boolean,
 ): Record<string, TemplateField> {
+    if (!fieldName) throw invalidExpression(file, expression);
     if (expression.type !== 'ObjectExpression') throw invalidExpression(file, expression);
     const entries = objectEntries(expression, file);
     if (Object.keys(entries).length > (nested ? 10 : 30)) {
@@ -346,15 +445,22 @@ function applyFieldOptions(
     if (options.minItems) field.minItems = boundedInteger(options.minItems, file);
     if (options.maxItems) field.maxItems = boundedInteger(options.maxItems, file, 1);
     if (options.options) {
-        if (options.options.type !== 'ArrayExpression') throw invalidExpression(file, options.options);
-        field.options = nodeList(options.options, 'elements').map((item) => stringLiteral(item, file));
+        if (options.options.type !== 'ArrayExpression')
+            throw invalidExpression(file, options.options);
+        field.options = nodeList(options.options, 'elements').map((item) =>
+            stringLiteral(item, file),
+        );
     }
 }
 
 function objectEntries(expression: AstNode, file: string): Record<string, AstNode> {
     const entries: Record<string, AstNode> = {};
     for (const property of nodeList(expression, 'properties')) {
-        if (property.type !== 'ObjectProperty' || property.computed === true || !isNode(property.value)) {
+        if (
+            property.type !== 'ObjectProperty' ||
+            property.computed === true ||
+            !isNode(property.value)
+        ) {
             throw invalidExpression(file, property);
         }
         const key = propertyName(property.key, file);
@@ -404,7 +510,10 @@ function assertKindMatchesDirectory(
     file: string,
     node: AstNode,
 ): void {
-    const valid = kind === inferredKind || (directory === 'pages' && kind === 'blog_index') || (directory === 'entries' && kind === 'blog_post');
+    const valid =
+        kind === inferredKind ||
+        (directory === 'pages' && kind === 'blog_index') ||
+        (directory === 'entries' && kind === 'blog_post');
     if (valid) return;
     throw validationError(
         file,
@@ -444,14 +553,84 @@ function nodeList(node: unknown, key: string): AstNode[] {
     return Array.isArray(value) ? value.filter(isNode) : [];
 }
 
+function shiftNodeLines(node: AstNode, offset: number): void {
+    if (node.loc?.start.line) node.loc.start.line += offset;
+
+    for (const [key, value] of Object.entries(node)) {
+        if (key === 'loc') continue;
+        if (Array.isArray(value)) {
+            for (const child of value) {
+                if (isNode(child)) shiftNodeLines(child, offset);
+            }
+        } else if (isNode(value)) {
+            shiftNodeLines(value, offset);
+        }
+    }
+}
+
+function containsReferencedIdentifier(
+    node: AstNode,
+    names: Set<string>,
+    parent: AstNode | null = null,
+    parentKey: string | null = null,
+): boolean {
+    if (
+        node.type === 'Identifier' &&
+        typeof node.name === 'string' &&
+        names.has(node.name) &&
+        !isNonReferenceIdentifier(parent, parentKey)
+    ) {
+        return true;
+    }
+
+    for (const [key, value] of Object.entries(node)) {
+        if (key === 'loc') continue;
+        if (Array.isArray(value)) {
+            if (
+                value.some(
+                    (child) =>
+                        isNode(child) && containsReferencedIdentifier(child, names, node, key),
+                )
+            ) {
+                return true;
+            }
+        } else if (isNode(value) && containsReferencedIdentifier(value, names, node, key)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function isNonReferenceIdentifier(parent: AstNode | null, key: string | null): boolean {
+    if (!parent || !key) return false;
+
+    return (
+        ((parent.type === 'MemberExpression' || parent.type === 'OptionalMemberExpression') &&
+            key === 'property' &&
+            parent.computed !== true) ||
+        ((parent.type === 'ObjectProperty' ||
+            parent.type === 'ObjectMethod' ||
+            parent.type === 'ClassMethod' ||
+            parent.type === 'ClassProperty') &&
+            key === 'key' &&
+            parent.computed !== true)
+    );
+}
+
 function isNode(value: unknown): value is AstNode {
-    return typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string';
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'type' in value &&
+        typeof value.type === 'string'
+    );
 }
 
 function invalidExpression(file: string, node: AstNode | undefined): ThemeValidationError {
     return validationError(
         file,
-        'Template companion contains an unsupported TypeScript expression.',
+        'Template declaration contains an unsupported TypeScript expression.',
         'Use only imported authoring helpers, object literals, array literals, and primitive option values.',
         undefined,
         node,

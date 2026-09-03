@@ -129,12 +129,6 @@ async function discoverTemplates(root: string): Promise<ThemeTemplates> {
 
         for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
             if (isIgnorableTemplateEntry(entry.name)) continue;
-            if (entry.isFile() && entry.name.endsWith('.bopli.ts')) {
-                const templateName = entry.name.slice(0, -9) + '.vue';
-                if (entries.some((candidate) => candidate.isFile() && candidate.name === templateName)) {
-                    continue;
-                }
-            }
             if (!entry.isFile() || extname(entry.name) !== '.vue') {
                 throw new ThemeValidationError({
                     code: 'BOPLI_E004',
@@ -209,11 +203,12 @@ async function inspectTemplate(
             file: sourceFile,
             line: block.loc.start.line,
             message: 'Inline <bopli> metadata is no longer supported.',
-            remediation: `Move template metadata into [${filename.slice(0, -4)}.bopli.ts] using the typed authoring helpers.`,
+            remediation:
+                'Declare the template with one top-level typed authoring helper call inside <script setup lang="ts">.',
         });
     }
 
-    return readTemplateAuthoring(templateRoot, directory, filename, inferredKind, handle);
+    return readTemplateAuthoring(contents, directory, filename, inferredKind, handle);
 }
 
 function isIgnorableTemplateEntry(name: string): boolean {

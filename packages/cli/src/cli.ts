@@ -72,9 +72,7 @@ export async function run(argv: string[]): Promise<void> {
         }
 
         const added = await addPageTemplate(handle, sourceArgument);
-        process.stdout.write(
-            `Added Page template [${added.handle}].\n  ${added.source}\n  ${added.companion}\n`,
-        );
+        process.stdout.write(`Added Page template [${added.handle}].\n  ${added.source}\n`);
         return;
     }
 
