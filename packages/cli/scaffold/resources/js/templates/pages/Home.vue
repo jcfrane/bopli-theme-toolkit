@@ -13,7 +13,7 @@ defineProps<HomeProps>();
 </script>
 
 <template>
-  <ThemeLayout :settings="settings">
+  <ThemeLayout :settings="settings" :footer="footer">
     <main>
       <h1>{{ page.title }}</h1>
       <p>{{ site.tagline }}</p>

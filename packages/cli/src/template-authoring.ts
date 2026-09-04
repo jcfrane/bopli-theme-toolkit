@@ -6,6 +6,8 @@ import type {
     TemplateField,
     TemplateKind,
     ThemeTemplate,
+    ThemeFooter,
+    ThemeSetting,
 } from './types.js';
 import { headline } from './utilities.js';
 import { ThemeValidationError, type ThemeValidationErrorCode } from './validation-error.js';
@@ -30,6 +32,7 @@ const FIELD_HELPERS: Record<string, string> = {
     json: 'json',
     relationship: 'relationship',
     list: 'list',
+    url: 'url',
 };
 const PAGE_FIELD_TYPES = new Set([
     'short_text',
@@ -50,6 +53,26 @@ const LIST_CHILD_TYPES = new Set([
     'date_time',
     'select',
 ]);
+const FOOTER_FIELD_TYPES = new Set([
+    'short_text',
+    'long_text',
+    'rich_text',
+    'boolean',
+    'select',
+    'image',
+    'url',
+    'list',
+]);
+const FOOTER_LIST_CHILD_TYPES = new Set([
+    'short_text',
+    'long_text',
+    'boolean',
+    'select',
+    'url',
+]);
+const SETTING_HELPERS = new Set(['text', 'boolean', 'select', 'color', 'image']);
+
+type AuthoringFieldContext = TemplateKind | 'footer';
 
 type AstNode = {
     type: string;
@@ -71,6 +94,13 @@ type ParsedAuthoring = {
     importDeclaration: AstNode;
     scriptOffset: number;
     template: ThemeTemplate;
+};
+
+type ParsedFooterAuthoring = {
+    declaration: AstNode;
+    importDeclaration: AstNode;
+    scriptOffset: number;
+    footer: ThemeFooter;
 };
 
 /** Reads one compile-time declaration from a Vue template and returns its serializable contract. */
@@ -110,6 +140,161 @@ export function stripTemplateAuthoring(
     }
 
     return stripped;
+}
+
+/** Reads one optional theme footer declaration from a Vue component. */
+export function readFooterAuthoring(source: string, sourceFile: string): ThemeFooter {
+    return parseFooterAuthoring(source, sourceFile).footer;
+}
+
+/** Removes the compile-time footer declaration before Vue compiles the component. */
+export function stripFooterAuthoring(source: string, sourceFile: string): string {
+    const parsed = parseFooterAuthoring(source, sourceFile);
+    const ranges = [parsed.importDeclaration, parsed.declaration]
+        .map((node) => {
+            if (typeof node.start !== 'number' || typeof node.end !== 'number') {
+                throw new Error('The TypeScript parser did not provide authoring source offsets.');
+            }
+
+            return [parsed.scriptOffset + node.start, parsed.scriptOffset + node.end] as const;
+        })
+        .sort((left, right) => right[0] - left[0]);
+    let stripped = source;
+
+    for (const [start, end] of ranges) {
+        const whitespace = stripped.slice(start, end).replace(/[^\r\n]/g, ' ');
+        stripped = `${stripped.slice(0, start)}${whitespace}${stripped.slice(end)}`;
+    }
+
+    return stripped;
+}
+
+function parseFooterAuthoring(source: string, sourceFile: string): ParsedFooterAuthoring {
+    const parsedSfc = parseSfc(source, { filename: sourceFile });
+    const parseError = parsedSfc.errors[0];
+    if (parseError) {
+        throw validationError(
+            sourceFile,
+            `Vue could not parse this single-file component: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            'Fix the reported Vue syntax before validating the footer declaration.',
+            parseError,
+        );
+    }
+    const script = parsedSfc.descriptor.scriptSetup;
+    if (!script || script.lang !== 'ts') {
+        throw validationError(
+            sourceFile,
+            'A footer declaration must be inside <script setup lang="ts">.',
+            'Move defineFooter() and its authoring import into a TypeScript setup block.',
+        );
+    }
+
+    const program = parseProgram(script.content, sourceFile, script.loc.start.line - 1);
+    const body = nodeList(program.program, 'body');
+    const authoringImports = body.filter(
+        (statement) =>
+            statement.type === 'ImportDeclaration' &&
+            isNode(statement.source) &&
+            statement.source.value === AUTHORING_IMPORT,
+    );
+    if (authoringImports.length !== 1) {
+        throw validationError(
+            sourceFile,
+            `Footer components must contain exactly one named import from [${AUTHORING_IMPORT}].`,
+            'Import defineFooter and the field or setting builders used by the declaration.',
+            undefined,
+            authoringImports[1] ?? authoringImports[0],
+        );
+    }
+
+    const importDeclaration = authoringImports[0] as AstNode;
+    let footerHelper: string | null = null;
+    let fieldName: string | null = null;
+    let settingName: string | null = null;
+    for (const specifier of nodeList(importDeclaration, 'specifiers')) {
+        if (
+            specifier.type !== 'ImportSpecifier' ||
+            !isNode(specifier.imported) ||
+            !isNode(specifier.local)
+        ) {
+            throw invalidExpression(sourceFile, specifier);
+        }
+        const imported = String(specifier.imported.name);
+        const local = String(specifier.local.name);
+        if (imported === 'defineFooter') footerHelper = local;
+        else if (imported === 'field') fieldName = local;
+        else if (imported === 'setting') settingName = local;
+        else throw invalidExpression(sourceFile, specifier);
+    }
+    if (!footerHelper) {
+        throw validationError(
+            sourceFile,
+            'A footer component must import defineFooter.',
+            'Import and call defineFooter exactly once.',
+            undefined,
+            importDeclaration,
+        );
+    }
+
+    const declarations = body.filter(
+        (statement) =>
+            statement.type === 'ExpressionStatement' &&
+            isNode(statement.expression) &&
+            statement.expression.type === 'CallExpression' &&
+            isNode(statement.expression.callee) &&
+            statement.expression.callee.type === 'Identifier' &&
+            statement.expression.callee.name === footerHelper,
+    );
+    if (declarations.length !== 1) {
+        throw validationError(
+            sourceFile,
+            'Footer components must contain exactly one top-level defineFooter call.',
+            'Call defineFooter once as a standalone statement.',
+            undefined,
+            declarations[1] ?? declarations[0] ?? importDeclaration,
+        );
+    }
+
+    const declaration = declarations[0] as AstNode;
+    const importedNames = new Set(
+        [footerHelper, fieldName, settingName].filter((value): value is string => value !== null),
+    );
+    const outsideUse = body
+        .filter((statement) => statement !== importDeclaration && statement !== declaration)
+        .find((statement) => containsReferencedIdentifier(statement, importedNames));
+    if (outsideUse) {
+        throw validationError(
+            sourceFile,
+            'Footer authoring helpers may be used only inside defineFooter().',
+            'Keep runtime behavior in ordinary Vue code.',
+            undefined,
+            outsideUse,
+        );
+    }
+
+    const call = declaration.expression;
+    if (!isNode(call)) throw invalidExpression(sourceFile, declaration);
+    const args = nodeList(call, 'arguments');
+    const definitionNode = args[0];
+    if (args.length !== 1 || !definitionNode || definitionNode.type !== 'ObjectExpression') {
+        throw invalidExpression(sourceFile, call);
+    }
+    const definition = objectEntries(definitionNode, sourceFile);
+    assertOnlyKeys(definition, ['settings', 'fields', 'defaults'], sourceFile, definitionNode);
+    if (!definition.fields || !definition.defaults) throw invalidExpression(sourceFile, definitionNode);
+    const settings = definition.settings
+        ? readFooterSettings(definition.settings, settingName, sourceFile)
+        : {};
+    const fields = readFields(definition.fields, fieldName, sourceFile, 'footer', false);
+    const defaults = literalObject(definition.defaults, sourceFile);
+    assertFooterDefaults(defaults, fields, sourceFile, definition.defaults);
+
+    return {
+        declaration,
+        importDeclaration,
+        scriptOffset: script.loc.start.offset,
+        footer: { source: `/${sourceFile}`, settings, fields, defaults },
+    };
 }
 
 function parseTemplateAuthoring(
@@ -322,7 +507,7 @@ function readFields(
     expression: AstNode,
     fieldName: string | null,
     file: string,
-    kind: TemplateKind,
+    kind: AuthoringFieldContext,
     nested: boolean,
 ): Record<string, TemplateField> {
     if (!fieldName) throw invalidExpression(file, expression);
@@ -331,7 +516,7 @@ function readFields(
     if (Object.keys(entries).length > (nested ? 10 : 30)) {
         throw validationError(
             file,
-            `A ${nested ? 'list' : 'template'} may declare at most ${nested ? 10 : 30} fields.`,
+            `A ${nested ? 'list' : kind === 'footer' ? 'footer' : 'template'} may declare at most ${nested ? 10 : 30} fields.`,
             'Remove fields or split the content into a separate model.',
             undefined,
             expression,
@@ -351,7 +536,7 @@ function readField(
     expression: AstNode,
     fieldName: string,
     file: string,
-    kind: TemplateKind,
+    kind: AuthoringFieldContext,
     nested: boolean,
 ): TemplateField {
     if (
@@ -377,11 +562,32 @@ function readField(
             expression,
         );
     }
-    if (nested && !LIST_CHILD_TYPES.has(type)) {
+    if (kind === 'footer' && !FOOTER_FIELD_TYPES.has(type)) {
+        throw validationError(
+            file,
+            `Footer field [${handle}] uses unsupported helper [field.${helper}].`,
+            'Use text, longText, richText, boolean, select, image, url, or list.',
+            undefined,
+            expression,
+        );
+    }
+    if (kind !== 'footer' && type === 'url') {
+        throw validationError(
+            file,
+            `Template field [${handle}] uses footer-only helper [field.url].`,
+            'Use field.url only inside defineFooter().',
+            undefined,
+            expression,
+        );
+    }
+    const allowedListChildren = kind === 'footer' ? FOOTER_LIST_CHILD_TYPES : LIST_CHILD_TYPES;
+    if (nested && !allowedListChildren.has(type)) {
         throw validationError(
             file,
             `List child [${handle}] uses unsupported helper [field.${helper}].`,
-            'List rows may contain text, longText, number, boolean, dateTime, or select fields.',
+            kind === 'footer'
+                ? 'Footer list rows may contain text, longText, boolean, select, or url fields.'
+                : 'List rows may contain text, longText, number, boolean, dateTime, or select fields.',
             undefined,
             expression,
         );
@@ -423,6 +629,252 @@ function readField(
         );
     }
     return fieldDefinition;
+}
+
+function readFooterSettings(
+    expression: AstNode,
+    settingName: string | null,
+    file: string,
+): Record<string, ThemeSetting> {
+    if (!settingName || expression.type !== 'ObjectExpression') {
+        throw invalidExpression(file, expression);
+    }
+    const entries = objectEntries(expression, file);
+    if (Object.keys(entries).length > 20) {
+        throw validationError(
+            file,
+            'A footer may declare at most 20 settings.',
+            'Remove footer settings or move site-wide presentation choices to package settings.',
+            undefined,
+            expression,
+        );
+    }
+
+    return Object.fromEntries(
+        Object.entries(entries).map(([handle, value]) => [
+            handle,
+            readFooterSetting(handle, value, settingName, file),
+        ]),
+    );
+}
+
+function readFooterSetting(
+    handle: string,
+    expression: AstNode,
+    settingName: string,
+    file: string,
+): ThemeSetting {
+    if (
+        expression.type !== 'CallExpression' ||
+        !isNode(expression.callee) ||
+        expression.callee.type !== 'MemberExpression' ||
+        !isNode(expression.callee.object) ||
+        expression.callee.object.type !== 'Identifier' ||
+        expression.callee.object.name !== settingName ||
+        !isNode(expression.callee.property)
+    ) {
+        throw invalidExpression(file, expression);
+    }
+    const type = String(expression.callee.property.name);
+    if (!SETTING_HELPERS.has(type)) throw invalidExpression(file, expression);
+    const args = nodeList(expression, 'arguments');
+    if (args.length !== 1 || !args[0] || args[0].type !== 'ObjectExpression') {
+        throw invalidExpression(file, expression);
+    }
+    const options = objectEntries(args[0], file);
+    assertOnlyKeys(options, ['name', 'description', 'default', 'options'], file, args[0]);
+    if (!options.name || !options.default) throw invalidExpression(file, args[0]);
+    const settingDefinition: ThemeSetting = {
+        name: stringLiteral(options.name, file),
+        type: type as ThemeSetting['type'],
+        default: literalValue(options.default, file) as string | boolean | null,
+    };
+    if (options.description) {
+        settingDefinition.description = stringLiteral(options.description, file);
+    }
+    if (options.options) {
+        if (options.options.type !== 'ArrayExpression') throw invalidExpression(file, options.options);
+        settingDefinition.options = nodeList(options.options, 'elements').map((item) =>
+            stringLiteral(item, file),
+        );
+    }
+    assertSettingDefault(handle, settingDefinition, file, expression);
+
+    return settingDefinition;
+}
+
+function assertSettingDefault(
+    handle: string,
+    settingDefinition: ThemeSetting,
+    file: string,
+    node: AstNode,
+): void {
+    const value = settingDefinition.default;
+    const valid =
+        (settingDefinition.type === 'text' && typeof value === 'string') ||
+        (settingDefinition.type === 'boolean' && typeof value === 'boolean') ||
+        (settingDefinition.type === 'color' &&
+            typeof value === 'string' &&
+            /^#[0-9a-fA-F]{6}$/.test(value)) ||
+        (settingDefinition.type === 'image' && value === null) ||
+        (settingDefinition.type === 'select' &&
+            typeof value === 'string' &&
+            settingDefinition.options?.includes(value) === true);
+    if (valid) return;
+
+    throw validationError(
+        file,
+        `Footer setting [${handle}] has an invalid default.`,
+        'Use a default matching the setting type and declared select options.',
+        undefined,
+        node,
+    );
+}
+
+function assertFooterDefaults(
+    defaults: Record<string, unknown>,
+    fields: Record<string, TemplateField>,
+    file: string,
+    node: AstNode,
+): void {
+    const fieldHandles = Object.keys(fields);
+    const defaultHandles = Object.keys(defaults);
+    const missing = fieldHandles.find((handle) => !defaultHandles.includes(handle));
+    const unknown = defaultHandles.find((handle) => !fieldHandles.includes(handle));
+    if (missing || unknown) {
+        throw validationError(
+            file,
+            missing
+                ? `Footer field [${missing}] is missing a default.`
+                : `Footer default [${unknown}] does not match a declared field.`,
+            'Declare exactly one default for every footer field.',
+            undefined,
+            node,
+        );
+    }
+
+    for (const [handle, field] of Object.entries(fields)) {
+        assertFooterValue(defaults[handle], field, `Footer default [${handle}]`, file, node);
+    }
+}
+
+function assertFooterValue(
+    value: unknown,
+    field: TemplateField,
+    label: string,
+    file: string,
+    node: AstNode,
+): void {
+    const valid =
+        (['short_text', 'long_text', 'select', 'url'].includes(field.type) &&
+            typeof value === 'string') ||
+        (field.type === 'rich_text' && value !== null && typeof value === 'object' && !Array.isArray(value)) ||
+        (field.type === 'boolean' && typeof value === 'boolean') ||
+        (field.type === 'image' && value === null) ||
+        (field.type === 'list' && Array.isArray(value));
+    if (!valid) {
+        throw validationError(
+            file,
+            `${label} does not match [${field.type}].`,
+            'Use a literal default matching the declared footer field type.',
+            undefined,
+            node,
+        );
+    }
+    if (field.type === 'select' && !field.options?.includes(String(value))) {
+        throw validationError(
+            file,
+            `${label} is not one of its select options.`,
+            'Choose one of the declared options.',
+            undefined,
+            node,
+        );
+    }
+    if (field.type === 'url' && !isSafeFooterUrl(String(value))) {
+        throw validationError(
+            file,
+            `${label} contains an unsafe URL.`,
+            'Use http://, https://, mailto:, or a root-relative path.',
+            undefined,
+            node,
+        );
+    }
+    if (field.type !== 'list' || !Array.isArray(value)) return;
+    const minimum = field.minItems ?? 0;
+    const maximum = field.maxItems ?? 20;
+    if (value.length < minimum || value.length > maximum) {
+        throw validationError(
+            file,
+            `${label} must contain between ${minimum} and ${maximum} items.`,
+            'Adjust the literal list default to match its declared bounds.',
+            undefined,
+            node,
+        );
+    }
+    const children = field.fields ?? {};
+    for (const [index, row] of value.entries()) {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) {
+            throw invalidExpression(file, node);
+        }
+        const record = row as Record<string, unknown>;
+        const unknown = Object.keys(record).find((handle) => !children[handle]);
+        if (unknown) {
+            throw validationError(
+                file,
+                `${label} item ${index + 1} contains unknown field [${unknown}].`,
+                'Use only fields declared for this footer list.',
+                undefined,
+                node,
+            );
+        }
+        for (const [handle, child] of Object.entries(children)) {
+            if (!(handle in record)) {
+                if (child.required === true) {
+                    throw validationError(
+                        file,
+                        `${label} item ${index + 1} is missing required field [${handle}].`,
+                        'Provide every required list value in the default.',
+                        undefined,
+                        node,
+                    );
+                }
+                continue;
+            }
+            assertFooterValue(record[handle], child, `${label}.${index}.${handle}`, file, node);
+        }
+    }
+}
+
+function isSafeFooterUrl(value: string): boolean {
+    return value === '' || /^(https?:\/\/|mailto:|\/)/.test(value);
+}
+
+function literalObject(node: AstNode, file: string): Record<string, unknown> {
+    const value = literalValue(node, file);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw invalidExpression(file, node);
+    }
+
+    return value as Record<string, unknown>;
+}
+
+function literalValue(node: AstNode, file: string): unknown {
+    if (node.type === 'StringLiteral' || node.type === 'BooleanLiteral' || node.type === 'NumericLiteral') {
+        return node.value;
+    }
+    if (node.type === 'NullLiteral') return null;
+    if (node.type === 'ArrayExpression') {
+        return nodeList(node, 'elements').map((item) => literalValue(item, file));
+    }
+    if (node.type === 'ObjectExpression') {
+        return Object.fromEntries(
+            Object.entries(objectEntries(node, file)).map(([key, value]) => [
+                key,
+                literalValue(value, file),
+            ]),
+        );
+    }
+    throw invalidExpression(file, node);
 }
 
 function applyFieldOptions(

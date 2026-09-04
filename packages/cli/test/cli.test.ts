@@ -44,6 +44,19 @@ test('validates the starter theme contract', async () => {
     assert.deepEqual(theme.settings, {
         accent_color: { name: 'Accent color', type: 'color', default: '#e95420' },
     });
+    assert.deepEqual(theme.footer?.settings, {
+        show_social_links: {
+            name: 'Show social links',
+            type: 'boolean',
+            default: true,
+        },
+    });
+    assert.equal(theme.footer?.fields.message?.type, 'short_text');
+    assert.equal(theme.footer?.fields.links?.type, 'list');
+    assert.deepEqual(theme.footer?.defaults, {
+        message: 'Powered by Boply',
+        links: [],
+    });
     assert.equal((theme.starter?.pages[0] as { path?: string })?.path, '/');
 });
 
@@ -69,6 +82,11 @@ test('derives standalone props and query fixtures for every declared template', 
             Object.keys(theme.templates),
         );
         assert.deepEqual(fixture.settings, { accent: '#336699', visible: true });
+        assert.deepEqual(fixture.footer.settings, { show_social_links: true });
+        assert.deepEqual(fixture.footer.content, {
+            message: 'Powered by Boply',
+            links: [],
+        });
         const home = fixture.templates.find((template) => template.handle === 'home');
         assert.equal((home?.props.page as { title?: string }).title, 'Home');
         assert.equal(
@@ -85,6 +103,7 @@ test('derives standalone props and query fixtures for every declared template', 
         assert.match(source, /fixture\.content\[query\.source\]/);
         assert.match(source, /setToolbarMinimized/);
         assert.match(source, /setSettingsOpen/);
+        assert.match(source, /footer\.content/);
         assert.match(html, /data-bopli-toolbar/);
         assert.match(html, /data-bopli-settings-panel[^>]+hidden/);
         assert.match(html, /data-bopli-toolbar-minimize/);
@@ -117,7 +136,10 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         assert.equal(created.root, root);
         assert.equal(
             packageSource,
-            await formatWithPrettier(packageSource, { ...prettierConfig, filepath: packagePath }),
+            await formatWithPrettier(packageSource, {
+                ...prettierConfig,
+                filepath: packagePath,
+            }),
         );
         assert.equal(definition.name, '@bopli-theme/my-theme');
         assert.deepEqual(definition.bopli, {
@@ -130,12 +152,12 @@ test('creates a pinned standalone-ready theme that validates and builds without 
         assert.equal(definition.scripts.lint, 'eslint . --max-warnings=0');
         assert.match(definition.scripts.build, /npm run check/);
         assert.match(definition.scripts.check, /npm test/);
-        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.11.0');
-        assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.7.0');
+        assert.equal(definition.devDependencies['@bopli/theme-cli'], '0.12.0');
+        assert.equal(definition.devDependencies['@bopli/theme-sdk'], '0.8.0');
         assert.doesNotMatch(JSON.stringify(definition), /file:/);
         assert.match(eslintConfig, /eslint-plugin-vue/);
         assert(tsconfig.include.includes('tests/**/*.ts'));
-        assert.match(workflow, /@theme-cli-v0\.11\.0/);
+        assert.match(workflow, /@theme-cli-v0\.12\.0/);
         assert.doesNotMatch(workflow, /toolkit-version/);
         assert.doesNotMatch(workflow, /__TOOLKIT_VERSION__/);
         assert.match(gitignore, /node_modules\//);
@@ -193,6 +215,8 @@ test('keeps the bundled scaffold source aligned with the checked starter theme',
     const paths = [
         'tsconfig.json',
         'resources/bopli/starter.json',
+        'resources/js/components/Footer.vue',
+        'resources/js/components/ThemeLayout.vue',
         'resources/js/templates/pages/Home.vue',
         'resources/js/templates/pages/Page.vue',
         'resources/js/templates/entries/Entry.vue',
@@ -250,7 +274,7 @@ test('generates settings, field, and pre-bound template prop types from theme me
         assert.match(declarations, /enabled: boolean;/);
         assert.match(
             declarations,
-            /export type HomeProps = BopliPageProps<HomeFields, ThemeSettings>;/,
+            /export type HomeProps = BopliPageProps<HomeFields, ThemeSettings, ThemeFooter>;/,
         );
         assert.match(declarations, /body: string;/);
         assert.match(declarations, /titleCopy\?: string \| null;/);
@@ -259,7 +283,17 @@ test('generates settings, field, and pre-bound template prop types from theme me
         assert.match(declarations, /related\?: BopliRelatedEntry\[\] \| null;/);
         assert.match(
             declarations,
-            /export type EntryProps = BopliEntryProps<EntryEntry, ThemeSettings>;/,
+            /export type EntryProps = BopliEntryProps<EntryEntry, ThemeSettings, ThemeFooter>;/,
+        );
+        assert.match(declarations, /export type FooterSettings = \{/);
+        assert.match(declarations, /show_social_links: boolean;/);
+        assert.match(declarations, /export type FooterContent = \{/);
+        assert.match(declarations, /message: string;/);
+        assert.match(declarations, /links: Array<\{/);
+        assert.match(declarations, /url: string;/);
+        assert.match(
+            declarations,
+            /export type ThemeFooter = BopliThemeFooter<FooterSettings, FooterContent>;/,
         );
     });
 });
@@ -384,6 +418,10 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
                     site: { name: 'Starter', tagline: 'Rendered on the server' },
                     page: { title: 'SSR home', fields: { body: 'Complete HTML' } },
                     settings: {},
+                    footer: {
+                        settings: { show_social_links: true },
+                        content: { message: 'Powered by Boply', links: [] },
+                    },
                 },
                 content,
             }),
@@ -396,6 +434,10 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
                     site: { name: 'Starter' },
                     page: { title: 'SSR page', fields: {} },
                     settings: {},
+                    footer: {
+                        settings: { show_social_links: true },
+                        content: { message: 'Powered by Boply', links: [] },
+                    },
                 },
                 content,
             }),
@@ -408,6 +450,10 @@ test('packages a deterministic upload-ready ZIP with compiled files at its root'
                     site: { name: 'Starter' },
                     entry: { title: 'SSR entry', body: 'Entry body' },
                     settings: {},
+                    footer: {
+                        settings: { show_social_links: true },
+                        content: { message: 'Powered by Boply', links: [] },
+                    },
                 },
                 content,
             }),
@@ -462,6 +508,10 @@ test('awaits SDK content queries while server-rendering a template', async () =>
                 site: { name: 'Starter', tagline: 'Prefetched' },
                 page: { title: 'Query SSR', fields: {} },
                 settings: {},
+                footer: {
+                    settings: { show_social_links: true },
+                    content: { message: 'Powered by Boply', links: [] },
+                },
             },
             content: {
                 async query() {
@@ -687,11 +737,46 @@ test('requires exactly one standalone top-level template declaration', async () 
         await writeFile(
             path,
             source
-                .replace("import { definePageTemplate, field } from '@bopli/theme-sdk/authoring';\n", '')
+                .replace(
+                    "import { definePageTemplate, field } from '@bopli/theme-sdk/authoring';\n",
+                    '',
+                )
                 .replace(/definePageTemplate\(\{[\s\S]*?\n\}\);\n/, ''),
         );
 
         await assert.rejects(inspectTheme(root), /exactly one named import/);
+    });
+});
+
+test('discovers one footer declaration outside templates and rejects duplicates or unsafe defaults', async () => {
+    await withStarterTheme(async (root) => {
+        const theme = await inspectTheme(root);
+
+        assert.equal(theme.footer?.source, '/resources/js/components/Footer.vue');
+        assert.equal(theme.footer?.fields.links?.type, 'list');
+    });
+
+    await withStarterTheme(async (root) => {
+        await cp(
+            join(root, 'resources/js/components/Footer.vue'),
+            join(root, 'resources/js/components/AlternateFooter.vue'),
+        );
+
+        await assert.rejects(inspectTheme(root), /at most one footer contract/);
+    });
+
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/components/Footer.vue');
+        const source = await readFile(path, 'utf8');
+        await writeFile(
+            path,
+            source.replace(
+                'links: [],',
+                "links: [{ label: 'Unsafe', url: 'javascript:alert(1)' }],",
+            ),
+        );
+
+        await assert.rejects(inspectTheme(root), /unsafe URL/);
     });
 });
 
@@ -728,7 +813,17 @@ test('rejects authoring bindings used by runtime code and obsolete companion fil
             "import { definePageTemplate } from '@bopli/theme-sdk/authoring';\nvoid definePageTemplate;\n",
         );
 
-        await assert.rejects(inspectTheme(root), /only by top-level Vue templates/);
+        await assert.rejects(inspectTheme(root), /only by Vue components/);
+    });
+
+    await withStarterTheme(async (root) => {
+        const path = join(root, 'resources/js/components/RuntimeAuthoring.vue');
+        await writeFile(
+            path,
+            '<script setup lang="ts">\nimport { field } from \'@bopli/theme-sdk/authoring\';\nvoid field;\n</script>\n<template><div /></template>\n',
+        );
+
+        await assert.rejects(inspectTheme(root), /only for defineFooter/);
     });
 });
 
@@ -1089,12 +1184,13 @@ async function writeTemplate(
     await mkdir(templateRoot, { recursive: true });
 
     const kind = String(metadata.kind ?? (directory === 'pages' ? 'page' : 'entry'));
-    const helper = {
-        page: 'definePageTemplate',
-        entry: 'defineEntryTemplate',
-        blog_index: 'defineBlogIndexTemplate',
-        blog_post: 'defineBlogPostTemplate',
-    }[kind] ?? 'definePageTemplate';
+    const helper =
+        {
+            page: 'definePageTemplate',
+            entry: 'defineEntryTemplate',
+            blog_index: 'defineBlogIndexTemplate',
+            blog_post: 'defineBlogPostTemplate',
+        }[kind] ?? 'definePageTemplate';
     const properties = [
         metadata.name ? `  name: ${JSON.stringify(metadata.name)},` : null,
         metadata.default === true ? '  default: true,' : null,
@@ -1113,19 +1209,20 @@ async function writeTemplate(
 function authoringFields(fields: Record<string, unknown>): string {
     const declarations = Object.entries(fields).map(([handle, value]) => {
         const fieldDefinition = value as Record<string, unknown>;
-        const helper = {
-            short_text: 'text',
-            long_text: 'longText',
-            rich_text: 'richText',
-            number: 'number',
-            boolean: 'boolean',
-            date_time: 'dateTime',
-            select: 'select',
-            slug: 'slug',
-            image: 'image',
-            json: 'json',
-            relationship: 'relationship',
-        }[String(fieldDefinition.type)] ?? String(fieldDefinition.type);
+        const helper =
+            {
+                short_text: 'text',
+                long_text: 'longText',
+                rich_text: 'richText',
+                number: 'number',
+                boolean: 'boolean',
+                date_time: 'dateTime',
+                select: 'select',
+                slug: 'slug',
+                image: 'image',
+                json: 'json',
+                relationship: 'relationship',
+            }[String(fieldDefinition.type)] ?? String(fieldDefinition.type);
         const options = {
             ...(fieldDefinition.name ? { label: fieldDefinition.name } : {}),
             ...(fieldDefinition.required === true ? { required: true } : {}),

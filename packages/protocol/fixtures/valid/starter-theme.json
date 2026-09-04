@@ -19,6 +19,43 @@
       "default": "#e95420"
     }
   },
+  "footer": {
+    "settings": {
+      "show_social_links": {
+        "name": "Show social links",
+        "type": "boolean",
+        "default": true
+      }
+    },
+    "fields": {
+      "message": {
+        "name": "Footer message",
+        "type": "short_text"
+      },
+      "links": {
+        "name": "Footer links",
+        "type": "list",
+        "fields": {
+          "label": {
+            "name": "Label",
+            "type": "short_text",
+            "required": true
+          },
+          "url": {
+            "name": "Url",
+            "type": "url",
+            "required": true
+          }
+        },
+        "maxItems": 8,
+        "minItems": 0
+      }
+    },
+    "defaults": {
+      "message": "Powered by Boply",
+      "links": []
+    }
+  },
   "templates": {
     "home": {
       "name": "Home",
@@ -108,27 +145,27 @@
     }
   },
   "runtime": {
-    "entry": "./assets/theme-BM2G35mz.js",
-    "ssrEntry": "./assets/theme-ssr-HVvBdHQ2.js",
+    "entry": "./assets/theme-ByF6VLZc.js",
+    "ssrEntry": "./assets/theme-ssr-CKOa7ArZ.js",
     "styles": [
-      "./assets/style-CkIU32Tx.css"
+      "./assets/style-CHDgKb2I.css"
     ]
   },
   "files": [
     {
-      "path": "assets/style-CkIU32Tx.css",
+      "path": "assets/style-CHDgKb2I.css",
       "size": 420,
-      "sha256": "9103a20416c3c97f43b0f7f7cd4ece726c3fbc20a7b9ed61709e24e3dabac9c9"
+      "sha256": "405369b373d2cfc156084aa2c3f02a4197c62b50b9098bb017c91bf864d0e662"
     },
     {
-      "path": "assets/theme-BM2G35mz.js",
-      "size": 63473,
-      "sha256": "cff42ebd2c2241e6db337efcce1752289209ea5fed6345ecaac567498647759d"
+      "path": "assets/theme-ByF6VLZc.js",
+      "size": 64410,
+      "sha256": "84962e5097b191c5a2e6947f57b60a70a8ec8c47a1df19419a0f1c7fe3b8846d"
     },
     {
-      "path": "assets/theme-ssr-HVvBdHQ2.js",
-      "size": 76923,
-      "sha256": "95c22c30ebf1061c5d0d5647278d5d4225eb07aafc6b2c640fc322869e1360cc"
+      "path": "assets/theme-ssr-CKOa7ArZ.js",
+      "size": 77780,
+      "sha256": "c9e24046d1b0fedb4581164ff77107409a3270d3fa71817a148f111b74feb84b"
     }
   ]
 }

@@ -16,6 +16,7 @@ export type TemplateField = {
         | 'image'
         | 'json'
         | 'relationship'
+        | 'url'
         | 'list';
     required?: boolean;
     helpText?: string;

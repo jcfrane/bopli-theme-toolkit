@@ -16,6 +16,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 test('exports protocol-v1 vocabularies from the schema', () => {
     assert.equal(PROTOCOL_VERSION, 1);
     assert(CONTENT_FIELD_TYPES.has('relationship'));
+    assert.equal(CONTENT_FIELD_TYPES.has('url'), false);
     assert(RESERVED_ENTRY_FIELDS.has('canonicalPath'));
 });
 

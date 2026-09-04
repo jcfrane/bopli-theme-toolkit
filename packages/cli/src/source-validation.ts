@@ -87,6 +87,26 @@ export async function validateImports(root: string): Promise<void> {
         for (const sourceModule of modules) {
             const analysis = analyzeModule(sourceModule.code, displayFile, sourceModule.language);
             const absoluteLine = (line: number): number => line + sourceModule.lineOffset;
+            const authoringImport = analysis.imports.find(
+                (reference) => reference.specifier === '@bopli/theme-sdk/authoring',
+            );
+
+            if (
+                authoringImport &&
+                displayFile.endsWith('.vue') &&
+                !displayFile.startsWith('resources/js/templates/') &&
+                !sourceModule.code.includes('defineFooter')
+            ) {
+                throw new ThemeValidationError({
+                    code: 'BOPLI_E020',
+                    file: displayFile,
+                    line: absoluteLine(authoringImport.line),
+                    message:
+                        'A non-template Vue component may import authoring helpers only for defineFooter().',
+                    remediation:
+                        'Remove the runtime authoring import or add the component’s single top-level footer declaration.',
+                });
+            }
 
             if (analysis.viteApi) {
                 throw new ThemeValidationError({
@@ -248,15 +268,15 @@ async function validateImportReference(
 ): Promise<void> {
     if (
         specifier === '@bopli/theme-sdk/authoring' &&
-        !/^resources\/js\/templates\/(?:pages|entries)\/[^/]+\.vue$/.test(displayFile)
+        !/^resources\/js\/.+\.vue$/.test(displayFile)
     ) {
         throw new ThemeValidationError({
             code: 'BOPLI_E020',
             file: displayFile,
             line,
-            message: 'Template authoring helpers may be imported only by top-level Vue templates.',
+            message: 'Theme authoring helpers may be imported only by Vue components.',
             remediation:
-                'Move the compile-time declaration into a template under resources/js/templates/pages or entries.',
+                'Move the compile-time declaration into a Vue setup block under resources/js.',
         });
     }
     if (PLATFORM_IMPORTS.has(specifier)) return;

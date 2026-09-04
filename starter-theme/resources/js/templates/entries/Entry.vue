@@ -15,7 +15,7 @@ defineProps<EntryProps>();
 </script>
 
 <template>
-  <ThemeLayout :settings="settings">
+  <ThemeLayout :settings="settings" :footer="footer">
     <main>
       <a href="/">{{ site.name }}</a>
       <article>

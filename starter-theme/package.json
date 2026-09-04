@@ -38,8 +38,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@bopli/theme-cli": "0.11.0",
-    "@bopli/theme-sdk": "0.7.0",
+    "@bopli/theme-cli": "0.12.0",
+    "@bopli/theme-sdk": "0.8.0",
     "@types/node": "^22.13.5",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",

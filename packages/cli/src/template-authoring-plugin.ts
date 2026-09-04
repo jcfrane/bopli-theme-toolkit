@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import type { Plugin } from 'vite';
-import { stripTemplateAuthoring } from './template-authoring.js';
+import { stripFooterAuthoring, stripTemplateAuthoring } from './template-authoring.js';
 import type { TemplateKind, ThemeDefinition } from './types.js';
 
 type TemplateSource = {
@@ -26,6 +26,9 @@ export function templateAuthoringPlugin(theme: ThemeDefinition): Plugin {
             inferredKind: match[1] === 'pages' ? 'page' : 'entry',
         });
     }
+    const footerSource = theme.footer
+        ? resolve(theme.root, `.${theme.footer.source}`)
+        : null;
 
     return {
         name: 'bopli-template-authoring',
@@ -33,15 +36,22 @@ export function templateAuthoringPlugin(theme: ThemeDefinition): Plugin {
         transform(code, id) {
             if (id.includes('?') || id.includes('#')) return null;
             const source = templates.get(id);
-            if (!source) return null;
+            if (!source && id !== footerSource) return null;
+
+            if (id === footerSource && theme.footer) {
+                return {
+                    code: stripFooterAuthoring(code, theme.footer.source.slice(1)),
+                    map: null,
+                };
+            }
 
             return {
                 code: stripTemplateAuthoring(
                     code,
-                    source.directory,
-                    source.filename,
-                    source.inferredKind,
-                    source.handle,
+                    source!.directory,
+                    source!.filename,
+                    source!.inferredKind,
+                    source!.handle,
                 ),
                 map: null,
             };

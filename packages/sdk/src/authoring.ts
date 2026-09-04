@@ -24,7 +24,17 @@ export type ScalarFieldType =
     | 'slug'
     | 'image'
     | 'json'
-    | 'relationship';
+    | 'relationship'
+    | 'url';
+
+export type FooterScalarFieldType =
+    | 'short_text'
+    | 'long_text'
+    | 'rich_text'
+    | 'boolean'
+    | 'select'
+    | 'image'
+    | 'url';
 
 export type ScalarFieldDefinition<TType extends ScalarFieldType = ScalarFieldType> =
     FieldOptions & {
@@ -33,7 +43,10 @@ export type ScalarFieldDefinition<TType extends ScalarFieldType = ScalarFieldTyp
     };
 
 export type ListChildFieldDefinition = ScalarFieldDefinition<
-    Exclude<ScalarFieldType, 'rich_text' | 'image' | 'json' | 'relationship' | 'slug'>
+    Exclude<
+        ScalarFieldType,
+        'rich_text' | 'image' | 'json' | 'relationship' | 'slug' | 'url'
+    >
 >;
 
 export type ListFieldDefinition = FieldOptions & {
@@ -45,11 +58,22 @@ export type ListFieldDefinition = FieldOptions & {
 
 export type PageFieldDefinition =
     | ScalarFieldDefinition<
-          Exclude<ScalarFieldType, 'json' | 'relationship' | 'slug'>
+          Exclude<ScalarFieldType, 'json' | 'relationship' | 'slug' | 'url'>
       >
     | ListFieldDefinition;
 
-export type EntryFieldDefinition = ScalarFieldDefinition;
+export type EntryFieldDefinition = ScalarFieldDefinition<Exclude<ScalarFieldType, 'url'>>;
+
+export type FooterListChildFieldDefinition = ScalarFieldDefinition<
+    Exclude<FooterScalarFieldType, 'rich_text' | 'image'>
+>;
+
+export type FooterFieldDefinition =
+    | ScalarFieldDefinition<FooterScalarFieldType>
+    | (ListFieldOptions & {
+          type: 'list';
+          fields: Record<string, FooterListChildFieldDefinition>;
+      });
 
 export type PageTemplateDefinition = {
     name?: string;
@@ -66,6 +90,20 @@ export type EntryTemplateDefinition = {
 export type NativeBlogTemplateDefinition = {
     name?: string;
     default?: boolean;
+};
+
+export type FooterSettingDefinition = {
+    name: string;
+    type: 'text' | 'boolean' | 'select' | 'color' | 'image';
+    description?: string;
+    default: string | boolean | null;
+    options?: readonly string[];
+};
+
+export type FooterDefinition = {
+    settings?: Record<string, FooterSettingDefinition>;
+    fields: Record<string, FooterFieldDefinition>;
+    defaults: Record<string, unknown>;
 };
 
 function scalar<TType extends ScalarFieldType>(
@@ -89,10 +127,40 @@ export const field = {
     image: (options?: FieldOptions) => scalar('image', options),
     json: (options?: FieldOptions) => scalar('json', options),
     relationship: (options?: FieldOptions) => scalar('relationship', options),
-    list: <TFields extends Record<string, ListChildFieldDefinition>>(
+    url: (options?: FieldOptions) => scalar('url', options),
+    list: <
+        TFields extends Record<
+            string,
+            ListChildFieldDefinition | FooterListChildFieldDefinition
+        >,
+    >(
         fields: TFields,
         options: ListFieldOptions = {},
-    ): ListFieldDefinition => ({ ...options, type: 'list', fields }),
+    ) => ({ ...options, type: 'list' as const, fields }),
+};
+
+export const setting = {
+    text: (definition: Omit<FooterSettingDefinition, 'type'>) => ({
+        ...definition,
+        type: 'text' as const,
+    }),
+    boolean: (definition: Omit<FooterSettingDefinition, 'type'>) => ({
+        ...definition,
+        type: 'boolean' as const,
+    }),
+    select: (
+        definition: Omit<FooterSettingDefinition, 'type'> & {
+            options: readonly string[];
+        },
+    ) => ({ ...definition, type: 'select' as const }),
+    color: (definition: Omit<FooterSettingDefinition, 'type'>) => ({
+        ...definition,
+        type: 'color' as const,
+    }),
+    image: (definition: Omit<FooterSettingDefinition, 'type'>) => ({
+        ...definition,
+        type: 'image' as const,
+    }),
 };
 
 export function definePageTemplate<const TDefinition extends PageTemplateDefinition>(
@@ -116,5 +184,11 @@ export function defineBlogIndexTemplate<
 export function defineBlogPostTemplate<
     const TDefinition extends NativeBlogTemplateDefinition,
 >(definition: TDefinition): TDefinition {
+    return definition;
+}
+
+export function defineFooter<const TDefinition extends FooterDefinition>(
+    definition: TDefinition,
+): TDefinition {
     return definition;
 }

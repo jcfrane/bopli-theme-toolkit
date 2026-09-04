@@ -1,6 +1,12 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { TemplateField, ThemeDefinition, ThemeSetting, ThemeTemplate } from './types.js';
+import type {
+    TemplateField,
+    ThemeDefinition,
+    ThemeFooter,
+    ThemeSetting,
+    ThemeTemplate,
+} from './types.js';
 import { isFileSystemError } from './utilities.js';
 
 const GENERATED_TYPES_PATH = 'resources/js/.bopli/types.d.ts';
@@ -28,12 +34,15 @@ export function typeDeclarations(theme: ThemeDefinition): string {
         '    BopliBlogPostProps,',
         '    BopliEntryProps,',
         '    BopliImage,',
+        '    BopliThemeFooter,',
         '    BopliPageProps,',
         '    BopliPublicEntry,',
         '    BopliRelatedEntry,',
         "} from '@bopli/theme-sdk';",
         '',
         settingsDeclaration(theme.settings),
+        '',
+        ...footerDeclarations(theme.footer),
     ];
 
     for (const [handle, template] of Object.entries(theme.templates)) {
@@ -53,16 +62,16 @@ function templateDeclarations(handle: string, template: ThemeTemplate): string[]
             ...fieldProperties(template.fields ?? {}),
             '};',
             '',
-            `export type ${name}Props = BopliPageProps<${name}Fields, ThemeSettings>;`,
+            `export type ${name}Props = BopliPageProps<${name}Fields, ThemeSettings, ThemeFooter>;`,
         ];
     }
 
     if (template.kind === 'blog_index') {
-        return [`export type ${name}Props = BopliBlogIndexProps<ThemeSettings>;`];
+        return [`export type ${name}Props = BopliBlogIndexProps<ThemeSettings, ThemeFooter>;`];
     }
 
     if (template.kind === 'blog_post') {
-        return [`export type ${name}Props = BopliBlogPostProps<ThemeSettings>;`];
+        return [`export type ${name}Props = BopliBlogPostProps<ThemeSettings, ThemeFooter>;`];
     }
 
     return [
@@ -76,19 +85,47 @@ function templateDeclarations(handle: string, template: ThemeTemplate): string[]
         '    seoDescription: string | null;',
         '};',
         '',
-        `export type ${name}Props = BopliEntryProps<${name}Entry, ThemeSettings>;`,
+        `export type ${name}Props = BopliEntryProps<${name}Entry, ThemeSettings, ThemeFooter>;`,
     ];
+}
+
+function footerDeclarations(footer: ThemeFooter | null): string[] {
+    const settings = footer?.settings ?? {};
+    const fields = footer?.fields ?? {};
+
+    return [
+        settingsTypeDeclaration('FooterSettings', settings),
+        '',
+        'export type FooterContent = {',
+        ...footerFieldProperties(fields),
+        '};',
+        '',
+        'export type ThemeFooter = BopliThemeFooter<FooterSettings, FooterContent>;',
+    ];
+}
+
+function footerFieldProperties(fields: Record<string, TemplateField>): string[] {
+    return Object.entries(fields).map(
+        ([handle, definition]) => `    ${propertyName(handle)}: ${fieldType(definition)};`,
+    );
 }
 
 /** Produces the concrete settings object consumed by every generated props alias. */
 function settingsDeclaration(settings: Record<string, ThemeSetting>): string {
+    return settingsTypeDeclaration('ThemeSettings', settings);
+}
+
+function settingsTypeDeclaration(
+    name: string,
+    settings: Record<string, ThemeSetting>,
+): string {
     const properties = Object.entries(settings).map(
         ([handle, setting]) => `    ${propertyName(handle)}: ${settingType(setting)};`,
     );
 
-    if (properties.length === 0) return 'export type ThemeSettings = Record<never, never>;';
+    if (properties.length === 0) return `export type ${name} = Record<never, never>;`;
 
-    return ['export type ThemeSettings = {', ...properties, '};'].join('\n');
+    return [`export type ${name} = {`, ...properties, '};'].join('\n');
 }
 
 /** Maps a manifest setting declaration to its public runtime value. */

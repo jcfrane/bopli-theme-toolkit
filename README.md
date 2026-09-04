@@ -13,7 +13,7 @@ Licensed under the MIT License.
 Theme repositories install the public packages:
 
 ```sh
-npm install --save-dev --save-exact @bopli/theme-cli@0.9.1 @bopli/theme-sdk@0.6.0
+npm install --save-dev --save-exact @bopli/theme-cli@0.12.0 @bopli/theme-sdk@0.8.0
 npx bopli-theme validate .
 npx bopli-theme types .
 npx bopli-theme build .
@@ -41,7 +41,7 @@ Theme source is TypeScript too: normal modules use `.ts`, Vue components use `<s
 
 Production browser builds preserve the runtime entry exports while emitting imported fonts, images, and other static assets as separate inventoried files. This keeps the render-blocking stylesheet small and lets each immutable asset use the CDN cache independently. Server builds remain self-contained for verified in-memory execution.
 
-Theme identity, compatibility, chooser metadata, and optional presentation settings live in the normal `package.json` under `bopli`. Composer metadata is not used. The five setting types are `text`, `boolean`, `select`, `color`, and `image`; Bopli merges declared defaults with per-Site overrides and supplies the resulting `settings` prop to every template.
+Theme identity, compatibility, chooser metadata, and optional presentation settings live in the normal `package.json` under `bopli`. Composer metadata is not used. The five setting types are `text`, `boolean`, `select`, `color`, and `image`; Bopli merges declared defaults with per-Site overrides and supplies the resulting `settings` prop to every template. Themes may additionally declare one typed `defineFooter()` contract in an ordinary Vue component, combining footer presentation settings with authored content fields and complete defaults. Bopli supplies the resolved `footer.settings` and `footer.content` data to every public template.
 
 `build` writes immutable ESM, CSS, assets, and protocol-v1 `theme.json` to the theme's `dist/` directory. It also writes the computed release hash to the ignored `.bopli-release-hash` file for CI upload paths. Until Bopli is explicitly declared production, the protocol, manifest schema, runtime ABI, and nested recipe versions always remain `1`; package and theme-release versions use SemVer independently.
 

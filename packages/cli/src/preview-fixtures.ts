@@ -17,6 +17,9 @@ export type PreviewFixture = {
     theme: { handle: string; name: string };
     settings: Record<string, string | boolean | JsonObject | null>;
     settingDefinitions: ThemeDefinition['settings'];
+    footer: { settings: Record<string, unknown>; content: Record<string, unknown> };
+    footerSettingDefinitions: NonNullable<ThemeDefinition['footer']>['settings'];
+    footerFieldDefinitions: NonNullable<ThemeDefinition['footer']>['fields'];
     templates: PreviewTemplateFixture[];
     content: Record<string, JsonObject[]>;
 };
@@ -45,6 +48,15 @@ export function previewFixtureFor(theme: ThemeDefinition): PreviewFixture {
         ]),
     );
     const site = previewSite(theme);
+    const footer = {
+        settings: Object.fromEntries(
+            Object.entries(theme.footer?.settings ?? {}).map(([handle, setting]) => [
+                handle,
+                previewSettingDefault(setting),
+            ]),
+        ),
+        content: structuredClone(theme.footer?.defaults ?? {}),
+    };
     const models = starterModels(theme);
     const entries = starterEntries(theme, models);
     const pages = starterPages(theme);
@@ -53,13 +65,16 @@ export function previewFixtureFor(theme: ThemeDefinition): PreviewFixture {
         handle,
         name: template.name,
         kind: template.kind,
-        props: templateProps(handle, template, theme, site, settings, models, entries, pages, blogPosts),
+        props: templateProps(handle, template, theme, site, settings, footer, models, entries, pages, blogPosts),
     }));
 
     return {
         theme: { handle: theme.handle, name: theme.name },
         settings,
         settingDefinitions: theme.settings,
+        footer,
+        footerSettingDefinitions: theme.footer?.settings ?? {},
+        footerFieldDefinitions: theme.footer?.fields ?? {},
         templates,
         content: {
             pages,
@@ -157,12 +172,13 @@ function templateProps(
     theme: ThemeDefinition,
     site: JsonObject,
     settings: Record<string, string | boolean | JsonObject | null>,
+    footer: { settings: Record<string, unknown>; content: Record<string, unknown> },
     models: Map<string, StarterModel>,
     entries: JsonObject[],
     pages: JsonObject[],
     blogPosts: JsonObject[],
 ): JsonObject {
-    const shared = { site, settings, preview: true };
+    const shared = { site, settings, footer, preview: true };
 
     if (template.kind === 'page') {
         const page = pages.find((candidate) => candidate.__template === handle) ?? {

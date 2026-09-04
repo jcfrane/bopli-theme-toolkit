@@ -21,6 +21,13 @@ export function descriptorFor(
             return [handle, publicTemplate as PublicThemeTemplate];
         }),
     );
+    const footer = theme.footer
+        ? {
+              settings: theme.footer.settings,
+              fields: theme.footer.fields,
+              defaults: theme.footer.defaults,
+          }
+        : null;
 
     const descriptor = {
         schemaVersion: PROTOCOL_VERSION,
@@ -34,6 +41,7 @@ export function descriptorFor(
         preview,
         colorModes: theme.colorModes,
         settings: theme.settings,
+        ...(footer ? { footer } : {}),
         templates,
         ...(theme.starter ? { starter: theme.starter } : {}),
         runtime: { entry, ssrEntry, styles },

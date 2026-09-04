@@ -5,11 +5,12 @@ import { parse as parseSfc } from '@vue/compiler-sfc';
 import semver from 'semver';
 import { assertNoSymlinks, validateImports } from './source-validation.js';
 import { readStarterRecipe } from './starter-recipe.js';
-import { readTemplateAuthoring } from './template-authoring.js';
+import { readFooterAuthoring, readTemplateAuthoring } from './template-authoring.js';
 import type {
     JsonObject,
     TemplateKind,
     ThemeDefinition,
+    ThemeFooter,
     ThemeSetting,
     ThemeSettingType,
     ThemeTemplate,
@@ -63,6 +64,7 @@ async function inspectThemeDefinition(root: string): Promise<ThemeDefinition> {
 
     await assertNoLegacyTemplateDirectories(root);
     const templates = await discoverTemplates(root);
+    const footer = await discoverFooter(root);
     assertTemplateDefaults(templates);
     await validateImports(root);
     const starter = await readStarterRecipe(root, templates);
@@ -83,9 +85,49 @@ async function inspectThemeDefinition(root: string): Promise<ThemeDefinition> {
         colorModes: bopli.colorModes ?? [],
         previewSource,
         settings: themeSettings(bopli.settings),
+        footer,
         templates,
         starter,
     };
+}
+
+async function discoverFooter(root: string): Promise<ThemeFooter | null> {
+    const sourceRoot = join(root, 'resources/js');
+    const candidates = await vueSources(sourceRoot);
+    const declarations: ThemeFooter[] = [];
+
+    for (const source of candidates) {
+        const relativeSource = relative(root, source).split(sep).join('/');
+        if (relativeSource.startsWith('resources/js/templates/')) continue;
+        const contents = await readFile(source, 'utf8');
+        if (!contents.includes('defineFooter')) continue;
+        declarations.push(readFooterAuthoring(contents, relativeSource));
+    }
+
+    if (declarations.length > 1) {
+        throw new Error('A theme may declare at most one footer contract.');
+    }
+
+    return declarations[0] ?? null;
+}
+
+async function vueSources(directory: string): Promise<string[]> {
+    let entries;
+    try {
+        entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+        if (isFileSystemError(error, 'ENOENT')) return [];
+        throw error;
+    }
+
+    const sources: string[] = [];
+    for (const entry of entries) {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) sources.push(...(await vueSources(path)));
+        else if (entry.isFile() && extname(entry.name) === '.vue') sources.push(path);
+    }
+
+    return sources.sort();
 }
 
 async function themePreviewSource(root: string, value: unknown): Promise<string | null> {

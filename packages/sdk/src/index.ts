@@ -49,6 +49,21 @@ export type BopliRelatedEntry = {
 export type BopliThemeSettingValue = string | boolean | BopliImage | null;
 export type BopliThemeSettings = Record<string, BopliThemeSettingValue>;
 
+export type BopliFooterContentValue =
+    | string
+    | boolean
+    | BopliImage
+    | null
+    | Array<Record<string, string | boolean | null>>;
+export type BopliFooterContent = Record<string, BopliFooterContentValue>;
+export type BopliThemeFooter<
+    TSettings extends BopliThemeSettings = BopliThemeSettings,
+    TContent extends BopliFooterContent = BopliFooterContent,
+> = {
+    settings: TSettings;
+    content: TContent;
+};
+
 export type BopliPublicEntry<TFields extends Record<string, unknown> = Record<never, never>> = {
     title: string;
     slug: string;
@@ -65,10 +80,12 @@ export type BopliQueriedEntry<TFields extends Record<string, unknown> = Record<n
 export type BopliPageProps<
     TFields extends Record<string, unknown> = Record<string, unknown>,
     TSettings extends BopliThemeSettings = BopliThemeSettings,
+    TFooter extends BopliThemeFooter = BopliThemeFooter,
 > = {
     site: BopliSite;
     page: BopliPage<TFields>;
     settings: TSettings;
+    footer: TFooter;
     preview?: boolean;
 };
 
@@ -79,10 +96,12 @@ export type BopliEntryProps<
         seoDescription: string | null;
     },
     TSettings extends BopliThemeSettings = BopliThemeSettings,
+    TFooter extends BopliThemeFooter = BopliThemeFooter,
 > = {
     site: BopliSite;
     entry: TEntry;
     settings: TSettings;
+    footer: TFooter;
     preview?: boolean;
 };
 
@@ -100,9 +119,13 @@ export type BopliBlogPostSummary = {
     tags: BopliBlogTerm[];
 };
 
-export type BopliBlogIndexProps<TSettings extends BopliThemeSettings = BopliThemeSettings> = {
+export type BopliBlogIndexProps<
+    TSettings extends BopliThemeSettings = BopliThemeSettings,
+    TFooter extends BopliThemeFooter = BopliThemeFooter,
+> = {
     site: BopliSite;
     settings: TSettings;
+    footer: TFooter;
     blog: { path: '/blog'; title: string; seoTitle: string | null; seoDescription: string | null };
     posts: {
         data: BopliBlogPostSummary[];
@@ -118,9 +141,13 @@ export type BopliBlogIndexProps<TSettings extends BopliThemeSettings = BopliThem
     tags: BopliBlogTerm[];
 };
 
-export type BopliBlogPostProps<TSettings extends BopliThemeSettings = BopliThemeSettings> = {
+export type BopliBlogPostProps<
+    TSettings extends BopliThemeSettings = BopliThemeSettings,
+    TFooter extends BopliThemeFooter = BopliThemeFooter,
+> = {
     site: BopliSite;
     settings: TSettings;
+    footer: TFooter;
     post: BopliBlogPostSummary & {
         body: string;
         canonicalPath: string | null;

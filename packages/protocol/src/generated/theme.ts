@@ -29,6 +29,7 @@ export type TemplateField = {
         | 'image'
         | 'json'
         | 'relationship'
+        | 'url'
         | 'list';
     required?: boolean;
     helpText?: string;
@@ -57,6 +58,7 @@ export interface ThemeDescriptor {
      */
     colorModes: ('light' | 'dark')[];
     settings: ThemeSettings;
+    footer?: Footer;
     templates: {
         [k: string]: Template;
     };
@@ -80,6 +82,20 @@ export interface ThemeSettings {
 }
 /**
  * This interface was referenced by `ThemeDescriptor`'s JSON-Schema
+ * via the `definition` "footer".
+ */
+export interface Footer {
+    settings: ThemeSettings;
+    fields: TemplateFields;
+    defaults: {
+        [k: string]: unknown;
+    };
+}
+export interface TemplateFields {
+    [k: string]: TemplateField;
+}
+/**
+ * This interface was referenced by `ThemeDescriptor`'s JSON-Schema
  * via the `definition` "template".
  */
 export interface Template {
@@ -87,9 +103,6 @@ export interface Template {
     kind: 'page' | 'entry' | 'blog_index' | 'blog_post';
     default: boolean;
     fields?: TemplateFields;
-}
-export interface TemplateFields {
-    [k: string]: TemplateField;
 }
 export interface StarterRecipe {
     version: 1;

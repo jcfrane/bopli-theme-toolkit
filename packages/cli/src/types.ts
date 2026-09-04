@@ -41,6 +41,13 @@ export type ThemeSetting = {
     options?: string[];
 };
 
+export type ThemeFooter = {
+    source: string;
+    settings: Record<string, ThemeSetting>;
+    fields: Record<string, TemplateField>;
+    defaults: Record<string, unknown>;
+};
+
 export type ThemeTemplates = Record<string, ThemeTemplate>;
 
 export type StarterRecipe = ProtocolStarterRecipe &
@@ -61,6 +68,7 @@ export type ThemeDefinition = {
     colorModes: string[];
     previewSource: string | null;
     settings: Record<string, ThemeSetting>;
+    footer: ThemeFooter | null;
     templates: ThemeTemplates;
     starter: StarterRecipe | null;
 };

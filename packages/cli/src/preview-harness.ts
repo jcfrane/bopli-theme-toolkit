@@ -56,6 +56,7 @@ const locationLabel = document.querySelector('[data-bopli-location]');
 const mountPoint = document.querySelector('[data-bopli-theme-mount]');
 const errorBox = document.querySelector('[data-bopli-error]');
 let settings = structuredClone(fixture.settings);
+let footer = structuredClone(fixture.footer);
 let session;
 
 for (const template of fixture.templates) {
@@ -80,6 +81,37 @@ if (Object.keys(fixture.settingDefinitions).length === 0) {
     const empty = document.createElement('p');
     empty.textContent = 'This theme has no configurable settings.';
     settingControls.append(empty);
+}
+
+if (
+    Object.keys(fixture.footerSettingDefinitions).length > 0 ||
+    Object.keys(fixture.footerFieldDefinitions).length > 0
+) {
+    const heading = document.createElement('h3');
+    heading.textContent = 'Footer';
+    settingControls.append(heading);
+}
+
+for (const [handle, definition] of Object.entries(fixture.footerSettingDefinitions)) {
+    const label = document.createElement('label');
+    const title = document.createElement('span');
+    title.textContent = definition.name;
+    const input = settingInput(handle, definition, footer.settings[handle]);
+    input.dataset.footerSetting = handle;
+    input.addEventListener('input', updateFooterSetting);
+    label.append(title, input);
+    settingControls.append(label);
+}
+
+for (const [handle, definition] of Object.entries(fixture.footerFieldDefinitions)) {
+    const label = document.createElement('label');
+    const title = document.createElement('span');
+    title.textContent = definition.name;
+    const input = footerFieldInput(handle, definition, footer.content[handle]);
+    input.dataset.footerField = handle;
+    input.addEventListener('input', updateFooterField);
+    label.append(title, input);
+    settingControls.append(label);
 }
 
 const content = {
@@ -146,7 +178,11 @@ document.documentElement.dataset.theme = initialColorMode;
 function render() {
     const selected = fixture.templates.find((template) => template.handle === templateSelect.value);
     if (!selected) return;
-    const props = { ...structuredClone(selected.props), settings: structuredClone(settings) };
+    const props = {
+        ...structuredClone(selected.props),
+        settings: structuredClone(settings),
+        footer: structuredClone(footer),
+    };
     errorBox.hidden = true;
     try {
         if (session) session.update({ template: selected.handle, props });
@@ -189,6 +225,47 @@ function updateSetting(event) {
     else if (definition.type === 'image') {
         settings[handle] = input.value ? { url: input.value, alt: null, width: null, height: null } : null;
     } else settings[handle] = input.value;
+    render();
+}
+
+function footerFieldInput(handle, definition, value) {
+    if (definition.type === 'list' || definition.type === 'rich_text' || definition.type === 'long_text') {
+        const input = document.createElement('textarea');
+        input.rows = definition.type === 'list' ? 5 : 3;
+        input.value = definition.type === 'list' || definition.type === 'rich_text'
+            ? JSON.stringify(value, null, 2)
+            : String(value ?? '');
+        return input;
+    }
+    return settingInput(handle, definition, value);
+}
+
+function updateFooterSetting(event) {
+    const input = event.currentTarget;
+    const handle = input.dataset.footerSetting;
+    const definition = fixture.footerSettingDefinitions[handle];
+    if (definition.type === 'boolean') footer.settings[handle] = input.checked;
+    else if (definition.type === 'image') {
+        footer.settings[handle] = input.value
+            ? { url: input.value, alt: null, width: null, height: null }
+            : null;
+    } else footer.settings[handle] = input.value;
+    render();
+}
+
+function updateFooterField(event) {
+    const input = event.currentTarget;
+    const handle = input.dataset.footerField;
+    const definition = fixture.footerFieldDefinitions[handle];
+    if (definition.type === 'boolean') footer.content[handle] = input.checked;
+    else if (definition.type === 'image') {
+        footer.content[handle] = input.value
+            ? { url: input.value, alt: null, width: null, height: null }
+            : null;
+    } else if (definition.type === 'list' || definition.type === 'rich_text') {
+        try { footer.content[handle] = JSON.parse(input.value); }
+        catch { return; }
+    } else footer.content[handle] = input.value;
     render();
 }
 
@@ -279,8 +356,9 @@ export function previewHarnessHtml(theme: ThemeDefinition): string {
         #bopli-preview-settings header strong { font-size: .95rem; }
         #bopli-preview-settings header button { color: #334155; background: #f8fafc; border-color: #cbd5e1; }
         #bopli-preview-settings p { margin: .5rem 0; color: #64748b; }
+        #bopli-preview-settings h3 { margin: 1rem 0 .25rem; padding-top: .75rem; border-top: 1px solid #e2e8f0; font-size: .85rem; }
         #bopli-preview-settings label { display: grid; gap: .3rem; margin-top: .7rem; font-weight: 600; }
-        #bopli-preview-settings input:not([type=checkbox]), #bopli-preview-settings select { width: 100%; min-height: 2.25rem; margin: 0; padding: .35rem .5rem; color: #0f172a; background: #fff; border: 1px solid #94a3b8; border-radius: .35rem; font: inherit; }
+        #bopli-preview-settings input:not([type=checkbox]), #bopli-preview-settings select, #bopli-preview-settings textarea { width: 100%; min-height: 2.25rem; margin: 0; padding: .35rem .5rem; color: #0f172a; background: #fff; border: 1px solid #94a3b8; border-radius: .35rem; font: inherit; }
         #bopli-preview-settings [type=checkbox] { justify-self: start; width: 1rem; height: 1rem; margin: 0; }
         #bopli-preview-error { position: fixed; z-index: 2147483646; left: 1rem; bottom: 3.75rem; max-width: calc(100vw - 2rem); padding: .75rem 1rem; color: #7f1d1d; background: #fee2e2; border: 1px solid #fca5a5; border-radius: .5rem; font: 14px/1.4 system-ui,sans-serif; }
         [data-bopli-theme-mount] { min-height: 100vh; }

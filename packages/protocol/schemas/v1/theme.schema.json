@@ -17,6 +17,7 @@
         "preview": { "type": ["string", "null"], "maxLength": 500 },
         "colorModes": { "type": "array", "maxItems": 3, "uniqueItems": true, "items": { "enum": ["light", "dark"] } },
         "settings": { "$ref": "definitions.schema.json#/$defs/themeSettings" },
+        "footer": { "$ref": "#/$defs/footer" },
         "templates": {
             "type": "object",
             "minProperties": 1,
@@ -42,6 +43,20 @@
         }
     },
     "$defs": {
+        "footer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["settings", "fields", "defaults"],
+            "properties": {
+                "settings": { "$ref": "definitions.schema.json#/$defs/themeSettings" },
+                "fields": { "$ref": "definitions.schema.json#/$defs/templateFields" },
+                "defaults": {
+                    "type": "object",
+                    "maxProperties": 30,
+                    "propertyNames": { "$ref": "definitions.schema.json#/$defs/handle" }
+                }
+            }
+        },
         "template": {
             "type": "object",
             "additionalProperties": false,

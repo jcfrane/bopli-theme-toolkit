@@ -10,6 +10,7 @@ import type {
     BopliContentResponse,
     BopliEntryProps,
     BopliThemeModule,
+    BopliThemeFooter,
     BopliThemeMountPayload,
     BopliThemeServerModule,
     BopliThemeServerRenderPayload,
@@ -26,8 +27,10 @@ import {
 } from '../src/index.js';
 import {
     defineEntryTemplate,
+    defineFooter,
     definePageTemplate,
     field,
+    setting,
 } from '../src/authoring.js';
 
 type ExampleSettings = {
@@ -77,6 +80,23 @@ if (false) {
     const entryTemplate = defineEntryTemplate({
         fields: { body: field.richText({ required: true }) },
     });
+    const footerDefinition = defineFooter({
+        settings: {
+            show_social_links: setting.boolean({ name: 'Show social links', default: true }),
+        },
+        fields: {
+            message: field.text({ required: true }),
+            links: field.list({
+                label: field.text({ required: true }),
+                url: field.url({ required: true }),
+            }),
+        },
+        defaults: { message: 'Powered by Boply', links: [] },
+    });
+    const footer = null as unknown as BopliThemeFooter<
+        { show_social_links: boolean },
+        { message: string; links: Array<{ label: string; url: string }> }
+    >;
 
     page.settings.accent_color.toUpperCase();
     entry.settings.show_theme_toggle.valueOf();
@@ -92,11 +112,20 @@ if (false) {
     summary.coverImage?.url;
     pageTemplate.fields.skills.fields.label.type;
     entryTemplate.fields.body.required;
+    footerDefinition.fields.links.fields.url.type;
+    footer.settings.show_social_links.valueOf();
+    footer.content.links[0]?.url.toUpperCase();
 
     definePageTemplate({
         fields: {
             // @ts-expect-error Page templates intentionally reject arbitrary JSON fields.
             metadata: field.json(),
+        },
+    });
+    definePageTemplate({
+        fields: {
+            // @ts-expect-error URL fields are reserved for the footer contract.
+            website: field.url(),
         },
     });
     definePageTemplate({
