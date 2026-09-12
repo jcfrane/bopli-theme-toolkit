@@ -105,6 +105,16 @@ export type BopliEntryProps<
     preview?: boolean;
 };
 
+/** Public presentation of the post creator; never includes account identifiers or email. */
+export type BopliPostAuthor = {
+    name: string;
+    profileImage: BopliImage | null;
+    bio: string | null;
+    /** Server-sanitized rich biography; older servers may omit it. */
+    bioHtml?: string | null;
+    link: { url: string; label: string } | null;
+};
+
 export type BopliBlogTerm = { name: string; slug: string };
 
 export type BopliBlogPostSummary = {
@@ -149,6 +159,7 @@ export type BopliBlogPostProps<
     settings: TSettings;
     footer: TFooter;
     post: BopliBlogPostSummary & {
+        author: BopliPostAuthor | null;
         body: string;
         canonicalPath: string | null;
         seoTitle: string | null;

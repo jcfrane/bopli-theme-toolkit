@@ -229,6 +229,12 @@ function templateProps(
         ...shared,
         post: {
             ...post,
+            author: {
+                name: 'Alex Rivera',
+                profileImage: null,
+                bio: 'Stories and notes from the author.',
+                link: { url: '/about', label: 'About the author' },
+            },
             body: '<p>This is sample blog content rendered by the standalone preview.</p>',
             canonicalPath: stringValue(post.url, '/blog/welcome'),
             seoTitle: nullableString(post.title),
